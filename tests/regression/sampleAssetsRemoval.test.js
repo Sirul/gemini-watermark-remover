@@ -16,6 +16,10 @@ import {
     shouldAttemptAdaptiveFallback
 } from '../../src/core/adaptiveDetector.js';
 import {
+    hasReliableAdaptiveWatermarkSignal,
+    hasReliableStandardWatermarkSignal
+} from '../../src/core/watermarkPresence.js';
+import {
     calculateWatermarkPosition,
     detectWatermarkConfig,
     resolveInitialStandardConfig
@@ -26,6 +30,18 @@ const SAMPLE_DIR = path.resolve(ROOT_DIR, 'src/assets/samples');
 const BG48_PATH = path.resolve(ROOT_DIR, 'src/assets/bg_48.png');
 const BG96_PATH = path.resolve(ROOT_DIR, 'src/assets/bg_96.png');
 const IMAGE_EXTENSIONS = new Set(['.png', '.webp', '.jpg', '.jpeg']);
+const KNOWN_GEMINI_SAMPLE_ASSETS = Object.freeze([
+    '4.png',
+    '5.png',
+    '5.webp',
+    'large.png',
+    'large2.png',
+    'large3.png'
+]);
+const KNOWN_NON_GEMINI_SAMPLE_ASSETS = Object.freeze([
+    'image-hHSLePr28CFGv5heI8brr.jpg',
+    'image-hHSLePr28CFGv5heI8brr.png'
+]);
 const RESIDUAL_RECALIBRATION_THRESHOLD = 0.5;
 const MIN_SUPPRESSION_FOR_SKIP_RECALIBRATION = 0.18;
 const MIN_RECALIBRATION_SCORE_DELTA = 0.18;
@@ -48,6 +64,19 @@ const NEAR_BLACK_THRESHOLD = 5;
 const MAX_NEAR_BLACK_RATIO_INCREASE = 0.05;
 const SUBPIXEL_SHIFTS = [-0.75, -0.5, -0.25, 0, 0.25, 0.5, 0.75];
 const SUBPIXEL_SCALES = [0.98, 0.99, 1, 1.01, 1.02];
+
+test('sample asset manifest should classify every image sample exactly once', async () => {
+    const files = (await readdir(SAMPLE_DIR))
+        .filter((name) => IMAGE_EXTENSIONS.has(path.extname(name).toLowerCase()))
+        .sort((a, b) => a.localeCompare(b));
+
+    const classified = [
+        ...KNOWN_GEMINI_SAMPLE_ASSETS,
+        ...KNOWN_NON_GEMINI_SAMPLE_ASSETS
+    ].sort((a, b) => a.localeCompare(b));
+
+    assert.deepEqual(classified, files);
+});
 
 test('isMissingPlaywrightExecutableError should detect missing-browser launch error', () => {
     const error = new Error(
@@ -193,6 +222,35 @@ function calculateNearBlackRatio(imageData, position) {
     return total > 0 ? nearBlack / total : 0;
 }
 
+function measureRegionDelta(originalImageData, processedImageData, position) {
+    let changedPixels = 0;
+    let totalPixels = 0;
+    let totalAbsoluteDelta = 0;
+
+    for (let row = 0; row < position.height; row++) {
+        for (let col = 0; col < position.width; col++) {
+            const idx = ((position.y + row) * originalImageData.width + (position.x + col)) * 4;
+            let pixelChanged = false;
+
+            for (let channel = 0; channel < 3; channel++) {
+                const delta = Math.abs(processedImageData.data[idx + channel] - originalImageData.data[idx + channel]);
+                totalAbsoluteDelta += delta;
+                if (delta > 0) pixelChanged = true;
+            }
+
+            if (pixelChanged) changedPixels++;
+            totalPixels++;
+        }
+    }
+
+    return {
+        changedPixels,
+        totalPixels,
+        changedRatio: totalPixels > 0 ? changedPixels / totalPixels : 0,
+        avgAbsoluteDeltaPerChannel: totalPixels > 0 ? totalAbsoluteDelta / (totalPixels * 3) : 0
+    };
+}
+
 function refineSubpixelOutline({
     originalImageData,
     alphaMap,
@@ -272,6 +330,66 @@ function removeWatermarkLikeEngine(imageData, alpha48, alpha96) {
     let config = resolvedConfig;
     let position = calculateWatermarkPosition(imageData.width, imageData.height, config);
     let alphaMap = config.logoSize === 96 ? alpha96 : alpha48;
+    const standardScore = computeRegionSpatialCorrelation({
+        imageData,
+        alphaMap,
+        region: {
+            x: position.x,
+            y: position.y,
+            size: position.width
+        }
+    });
+    const standardGradient = computeRegionGradientCorrelation({
+        imageData,
+        alphaMap,
+        region: {
+            x: position.x,
+            y: position.y,
+            size: position.width
+        }
+    });
+
+    if (!hasReliableStandardWatermarkSignal({
+        spatialScore: standardScore,
+        gradientScore: standardGradient
+    })) {
+        const adaptive = detectAdaptiveWatermarkRegion({
+            imageData,
+            alpha96,
+            defaultConfig: config
+        });
+
+        if (!hasReliableAdaptiveWatermarkSignal(adaptive)) {
+            const regionDelta = measureRegionDelta(imageData, imageData, position);
+            return {
+                beforeScore: standardScore,
+                beforeGradient: standardGradient,
+                afterScore: standardScore,
+                afterGradient: standardGradient,
+                improvement: 0,
+                alphaGain: 1,
+                beforeBlackRatio: calculateNearBlackRatio(imageData, position),
+                afterBlackRatio: calculateNearBlackRatio(imageData, position),
+                position,
+                regionDelta,
+                skipped: true
+            };
+        }
+
+        const size = adaptive.region.size;
+        position = {
+            x: adaptive.region.x,
+            y: adaptive.region.y,
+            width: size,
+            height: size
+        };
+        alphaMap = size === 96 ? alpha96 : interpolateAlphaMap(alpha96, 96, size);
+        config = {
+            logoSize: size,
+            marginRight: imageData.width - position.x - size,
+            marginBottom: imageData.height - position.y - size
+        };
+    }
 
     const fixed = cloneImageData(imageData);
     removeWatermark(fixed, alphaMap, position);
@@ -292,7 +410,7 @@ function removeWatermarkLikeEngine(imageData, alpha48, alpha96) {
             defaultConfig: config
         });
 
-        if (adaptive.found) {
+        if (hasReliableAdaptiveWatermarkSignal(adaptive)) {
             const size = adaptive.region.size;
             const adaptivePosition = {
                 x: adaptive.region.x,
@@ -410,6 +528,7 @@ function removeWatermarkLikeEngine(imageData, alpha48, alpha96) {
 
     const beforeBlackRatio = calculateNearBlackRatio(imageData, position);
     const afterBlackRatio = calculateNearBlackRatio(finalImageData, position);
+    const regionDelta = measureRegionDelta(imageData, finalImageData, position);
 
     return {
         beforeScore,
@@ -419,16 +538,17 @@ function removeWatermarkLikeEngine(imageData, alpha48, alpha96) {
         improvement,
         alphaGain,
         beforeBlackRatio,
-        afterBlackRatio
+        afterBlackRatio,
+        position,
+        regionDelta,
+        skipped: false
     };
 }
 
-test('all sample assets should show strong watermark suppression after processing', async (t) => {
-    const files = (await readdir(SAMPLE_DIR))
-        .filter((name) => IMAGE_EXTENSIONS.has(path.extname(name).toLowerCase()))
-        .sort((a, b) => a.localeCompare(b));
+test('known Gemini sample assets should show strong watermark suppression after processing', async (t) => {
+    const files = KNOWN_GEMINI_SAMPLE_ASSETS.filter((name) => IMAGE_EXTENSIONS.has(path.extname(name).toLowerCase()));
 
-    assert.ok(files.length > 0, 'samples directory should contain image files');
+    assert.ok(files.length > 0, 'known Gemini sample asset list should not be empty');
 
     let browser;
     try {
@@ -476,6 +596,47 @@ test('all sample assets should show strong watermark suppression after processin
                     `${fileName}: expected outline gradient to not increase, before=${result.beforeGradient}, after=${result.afterGradient}`
                 );
             }
+        }
+    } finally {
+        await browser.close();
+    }
+});
+
+test('known non-Gemini sample assets should keep the candidate region unchanged', async (t) => {
+    const files = KNOWN_NON_GEMINI_SAMPLE_ASSETS.filter((name) => IMAGE_EXTENSIONS.has(path.extname(name).toLowerCase()));
+
+    assert.ok(files.length > 0, 'known non-Gemini sample asset list should not be empty');
+
+    let browser;
+    try {
+        browser = await chromium.launch({ headless: true });
+    } catch (error) {
+        if (isMissingPlaywrightExecutableError(error)) {
+            t.skip('Playwright browser binaries are missing in this environment');
+            return;
+        }
+        throw error;
+    }
+
+    const page = await browser.newPage();
+
+    try {
+        const alpha48 = calculateAlphaMap(await decodeImageDataInPage(page, BG48_PATH));
+        const alpha96 = calculateAlphaMap(await decodeImageDataInPage(page, BG96_PATH));
+
+        for (const fileName of files) {
+            const filePath = path.join(SAMPLE_DIR, fileName);
+            const imageData = await decodeImageDataInPage(page, filePath);
+            const result = removeWatermarkLikeEngine(imageData, alpha48, alpha96);
+
+            assert.ok(
+                result.regionDelta.changedRatio <= 0.01,
+                `${fileName}: expected weak-match region to remain unchanged, changedRatio=${result.regionDelta.changedRatio}, candidateSize=${result.position.width}`
+            );
+            assert.ok(
+                result.regionDelta.avgAbsoluteDeltaPerChannel <= 0.5,
+                `${fileName}: expected weak-match region delta <= 0.5, got ${result.regionDelta.avgAbsoluteDeltaPerChannel}`
+            );
         }
     } finally {
         await browser.close();

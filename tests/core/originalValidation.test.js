@@ -112,6 +112,23 @@ test('resolveOriginalValidation should not promote when only adaptive confidence
     assert.deepEqual(out, { is_google: false, is_original: true });
 });
 
+test('resolveOriginalValidation should not promote when removal was explicitly skipped', () => {
+    const out = resolveOriginalValidation(
+        { is_google: false, is_original: true },
+        {
+            applied: false,
+            detection: {
+                originalSpatialScore: 0.82,
+                processedSpatialScore: 0.82,
+                suppressionGain: 0,
+                adaptiveConfidence: 0.61
+            }
+        }
+    );
+
+    assert.deepEqual(out, { is_google: false, is_original: true });
+});
+
 test('getOriginalStatus should not warn for non-original size when Gemini source is confirmed', () => {
     const message = getOriginalStatus({ is_google: true, is_original: false });
     assert.equal(message, 'original.pass');

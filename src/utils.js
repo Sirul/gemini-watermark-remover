@@ -160,6 +160,7 @@ export function isLikelyGeminiByWatermarkMeta(
     } = {}
 ) {
     if (!watermarkMeta || typeof watermarkMeta !== 'object') return false;
+    if (watermarkMeta.applied === false) return false;
 
     const size = normalizeDimension(watermarkMeta.size);
     if (!size || size < minSize || size > maxSize) return false;

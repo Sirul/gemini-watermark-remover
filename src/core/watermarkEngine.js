@@ -18,6 +18,10 @@ import {
     calculateWatermarkPosition,
     resolveInitialStandardConfig
 } from './watermarkConfig.js';
+import {
+    hasReliableAdaptiveWatermarkSignal,
+    hasReliableStandardWatermarkSignal
+} from './watermarkPresence.js';
 import BG_48_PATH from '../assets/bg_48.png';
 import BG_96_PATH from '../assets/bg_96.png';
 export { detectWatermarkConfig, calculateWatermarkPosition } from './watermarkConfig.js';
@@ -84,6 +88,67 @@ function cloneImageData(imageData) {
         imageData.width,
         imageData.height
     );
+}
+
+function normalizeMetaPosition(position) {
+    if (!position) return null;
+
+    const { x, y, width, height } = position;
+    if (![x, y, width, height].every((value) => Number.isFinite(value))) {
+        return null;
+    }
+
+    return { x, y, width, height };
+}
+
+function normalizeMetaConfig(config) {
+    if (!config) return null;
+
+    const { logoSize, marginRight, marginBottom } = config;
+    if (![logoSize, marginRight, marginBottom].every((value) => Number.isFinite(value))) {
+        return null;
+    }
+
+    return { logoSize, marginRight, marginBottom };
+}
+
+function createWatermarkMeta({
+    position = null,
+    config = null,
+    adaptiveConfidence = null,
+    originalSpatialScore = null,
+    originalGradientScore = null,
+    processedSpatialScore = null,
+    processedGradientScore = null,
+    suppressionGain = null,
+    templateWarp = null,
+    alphaGain = 1,
+    source = 'standard',
+    applied = true,
+    skipReason = null,
+    subpixelShift = null
+} = {}) {
+    const normalizedPosition = normalizeMetaPosition(position);
+
+    return {
+        applied,
+        skipReason: applied ? null : skipReason,
+        size: normalizedPosition ? normalizedPosition.width : null,
+        position: normalizedPosition,
+        config: normalizeMetaConfig(config),
+        detection: {
+            adaptiveConfidence,
+            originalSpatialScore,
+            originalGradientScore,
+            processedSpatialScore,
+            processedGradientScore,
+            suppressionGain
+        },
+        templateWarp: templateWarp ?? null,
+        alphaGain,
+        source,
+        subpixelShift: subpixelShift ?? null
+    };
 }
 
 function shouldRecalibrateAlphaStrength({ originalScore, processedScore, suppressionGain }) {
@@ -392,6 +457,7 @@ export class WatermarkEngine {
      */
     async removeWatermarkFromImage(image, options = {}) {
         const adaptiveMode = options.adaptiveMode || 'auto';
+        const allowAdaptiveSearch = adaptiveMode !== 'never' && adaptiveMode !== 'off';
 
         // Create canvas to process image
         const canvas = createRuntimeCanvas(image.width, image.height);
@@ -420,6 +486,72 @@ export class WatermarkEngine {
         let source = 'standard';
         let adaptiveConfidence = null;
         let alphaGain = 1;
+        let subpixelShift = null;
+
+        const standardSpatialScore = computeRegionSpatialCorrelation({
+            imageData: originalImageData,
+            alphaMap,
+            region: {
+                x: position.x,
+                y: position.y,
+                size: position.width
+            }
+        });
+        const standardGradientScore = computeRegionGradientCorrelation({
+            imageData: originalImageData,
+            alphaMap,
+            region: {
+                x: position.x,
+                y: position.y,
+                size: position.width
+            }
+        });
+
+        if (!hasReliableStandardWatermarkSignal({
+            spatialScore: standardSpatialScore,
+            gradientScore: standardGradientScore
+        })) {
+            const adaptive = allowAdaptiveSearch
+                ? detectAdaptiveWatermarkRegion({
+                    imageData: originalImageData,
+                    alpha96,
+                    defaultConfig: config
+                })
+                : null;
+
+            adaptiveConfidence = adaptive?.confidence ?? null;
+
+            if (!hasReliableAdaptiveWatermarkSignal(adaptive)) {
+                canvas.__watermarkMeta = createWatermarkMeta({
+                    adaptiveConfidence,
+                    originalSpatialScore: standardSpatialScore,
+                    originalGradientScore: standardGradientScore,
+                    processedSpatialScore: standardSpatialScore,
+                    processedGradientScore: standardGradientScore,
+                    suppressionGain: 0,
+                    alphaGain: 1,
+                    source: 'skipped',
+                    applied: false,
+                    skipReason: 'no-watermark-detected'
+                });
+                return canvas;
+            }
+
+            const size = adaptive.region.size;
+            position = {
+                x: adaptive.region.x,
+                y: adaptive.region.y,
+                width: size,
+                height: size
+            };
+            alphaMap = await this.getAlphaMap(size);
+            config = {
+                logoSize: size,
+                marginRight: canvas.width - position.x - size,
+                marginBottom: canvas.height - position.y - size
+            };
+            source = 'adaptive';
+        }
 
         // First pass: keep the fast fixed-rule path.
         const fixedImageData = cloneImageData(originalImageData);
@@ -437,14 +569,14 @@ export class WatermarkEngine {
             });
 
         // Fallback: run adaptive search only when residual signal remains high.
-        if (shouldFallback) {
+        if (shouldFallback && allowAdaptiveSearch) {
             const adaptive = detectAdaptiveWatermarkRegion({
                 imageData: originalImageData,
                 alpha96,
                 defaultConfig: config
             });
 
-            if (adaptive.found) {
+            if (hasReliableAdaptiveWatermarkSignal(adaptive)) {
                 adaptiveConfidence = adaptive.confidence;
                 const size = adaptive.region.size;
                 const adaptivePosition = {
@@ -576,39 +708,28 @@ export class WatermarkEngine {
                 finalProcessedGradientScore = refined.gradientScore;
                 suppressionGain = originalSpatialScore - finalProcessedSpatialScore;
                 source = `${source}+subpixel`;
-                canvas.__watermarkMeta = canvas.__watermarkMeta || {};
-                canvas.__watermarkMeta.subpixelShift = refined.shift;
+                subpixelShift = refined.shift;
             }
         }
 
         // Write processed image data back to canvas
         ctx.putImageData(finalImageData, 0, 0);
 
-        canvas.__watermarkMeta = {
-            size: position.width,
-            position: {
-                x: position.x,
-                y: position.y,
-                width: position.width,
-                height: position.height
-            },
-            config: {
-                logoSize: config.logoSize,
-                marginRight: config.marginRight,
-                marginBottom: config.marginBottom
-            },
-            detection: {
-                adaptiveConfidence,
-                originalSpatialScore,
-                originalGradientScore,
-                processedSpatialScore: finalProcessedSpatialScore,
-                processedGradientScore: finalProcessedGradientScore,
-                suppressionGain
-            },
+        canvas.__watermarkMeta = createWatermarkMeta({
+            position,
+            config,
+            adaptiveConfidence,
+            originalSpatialScore,
+            originalGradientScore,
+            processedSpatialScore: finalProcessedSpatialScore,
+            processedGradientScore: finalProcessedGradientScore,
+            suppressionGain,
             templateWarp: templateWarp?.shift ?? null,
             alphaGain,
-            source
-        };
+            source,
+            applied: true,
+            subpixelShift
+        });
 
         return canvas;
     }

@@ -252,6 +252,12 @@ function renderSingleImageMeta(item) {
     `;
 }
 
+function getProcessedStatusLabel(item) {
+    return item?.processedMeta?.applied === false
+        ? i18n.t('info.skipped')
+        : i18n.t('info.removed');
+}
+
 function renderSingleProcessedMeta(item) {
     if (!item?.originalImg) return;
 
@@ -259,12 +265,13 @@ function renderSingleProcessedMeta(item) {
         item,
         getEstimatedWatermarkInfo(item)
     );
+    const showWatermarkInfo = watermarkInfo && item?.processedMeta?.applied !== false;
 
     processedInfo.innerHTML = `
         <p>${i18n.t('info.size')}: ${item.originalImg.width}×${item.originalImg.height}</p>
-        ${watermarkInfo ? `<p>${i18n.t('info.watermark')}: ${watermarkInfo.size}×${watermarkInfo.size}</p>` : ''}
-        ${watermarkInfo ? `<p>${i18n.t('info.position')}: (${watermarkInfo.position.x},${watermarkInfo.position.y})</p>` : ''}
-        <p>${i18n.t('info.status')}: ${i18n.t('info.removed')}</p>
+        ${showWatermarkInfo ? `<p>${i18n.t('info.watermark')}: ${watermarkInfo.size}×${watermarkInfo.size}</p>` : ''}
+        ${showWatermarkInfo ? `<p>${i18n.t('info.position')}: (${watermarkInfo.position.x},${watermarkInfo.position.y})</p>` : ''}
+        <p>${i18n.t('info.status')}: ${getProcessedStatusLabel(item)}</p>
     `;
 }
 
@@ -292,11 +299,14 @@ function renderImageCardStatus(item) {
         item,
         getEstimatedWatermarkInfo(item)
     );
-    if (!watermarkInfo) return;
+    const showWatermarkInfo = watermarkInfo && item?.processedMeta?.applied !== false;
 
-    let html = `<p>${i18n.t('info.size')}: ${item.originalImg.width}×${item.originalImg.height}</p>
-        <p>${i18n.t('info.watermark')}: ${watermarkInfo.size}×${watermarkInfo.size}</p>
+    let html = `<p>${i18n.t('info.size')}: ${item.originalImg.width}×${item.originalImg.height}</p>`;
+    if (showWatermarkInfo) {
+        html += `<p>${i18n.t('info.watermark')}: ${watermarkInfo.size}×${watermarkInfo.size}</p>
         <p>${i18n.t('info.position')}: (${watermarkInfo.position.x},${watermarkInfo.position.y})</p>`;
+    }
+    html += `<p>${i18n.t('info.status')}: ${getProcessedStatusLabel(item)}</p>`;
 
     if (item.validation && !item.validation.is_google) {
         html += `<p class="inline-block mt-1 text-xs md:text-sm text-warn">${getOriginalStatus(item.validation)}</p>`;

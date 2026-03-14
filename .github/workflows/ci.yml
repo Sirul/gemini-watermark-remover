@@ -37,11 +37,14 @@ jobs:
             exit 1
           fi
 
-      - name: Install Playwright Chromium
-        run: pnpm exec playwright install --with-deps chromium
-
       - name: Build
         run: pnpm build
+
+      - name: SDK publish smoke
+        run: pnpm test:sdk-smoke
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
 
       - name: Test
         run: pnpm test

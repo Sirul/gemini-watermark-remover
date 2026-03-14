@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import os from 'node:os';
 import path from 'node:path';
-import { mkdtemp, mkdir, readdir, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 
 const ROOT_DIR = process.cwd();
@@ -42,6 +42,7 @@ test('packed sdk should compile in an isolated TypeScript consumer without DOM l
     const tarballDir = path.join(tempDir, 'packed');
     const tsconfigPath = path.join(tempDir, 'tsconfig.json');
     const consumerEntry = path.join(tempDir, 'consumer.ts');
+    const exampleDir = path.join(ROOT_DIR, 'examples', 'sdk-consumer-ts');
 
     await mkdir(packageRoot, { recursive: true });
     await mkdir(tarballDir, { recursive: true });
@@ -54,56 +55,20 @@ test('packed sdk should compile in an isolated TypeScript consumer without DOM l
     const tarballPath = path.join(tarballDir, packedFiles[0]);
     run('tar', ['-xf', tarballPath, '-C', packageRoot, '--strip-components=1'], ROOT_DIR);
 
-    await writeFile(tsconfigPath, JSON.stringify({
-        compilerOptions: {
-            target: 'ES2022',
-            module: 'NodeNext',
-            moduleResolution: 'NodeNext',
-            strict: true,
-            noEmit: true,
-            lib: ['ES2022'],
-            types: ['node'],
-            typeRoots: [path.join(ROOT_DIR, 'node_modules', '@types')],
-            skipLibCheck: false
-        },
-        include: ['./consumer.ts']
+    const exampleTsconfig = JSON.parse(await readFile(path.join(exampleDir, 'tsconfig.json'), 'utf8'));
+    exampleTsconfig.compilerOptions.typeRoots = [path.join(ROOT_DIR, 'node_modules', '@types')];
+    await writeFile(tsconfigPath, JSON.stringify(exampleTsconfig, null, 2), 'utf8');
+
+    await writeFile(consumerEntry, await readFile(path.join(exampleDir, 'consumer.ts'), 'utf8'), 'utf8');
+
+    const examplePackageJson = JSON.parse(await readFile(path.join(exampleDir, 'package.json'), 'utf8'));
+    await writeFile(path.join(tempDir, 'package.json'), JSON.stringify({
+        ...examplePackageJson,
+        dependencies: {
+            ...examplePackageJson.dependencies,
+            'gemini-watermark-remover': 'file:./node_modules/gemini-watermark-remover'
+        }
     }, null, 2), 'utf8');
-
-    await writeFile(consumerEntry, `
-import {
-    createWatermarkEngine,
-    removeWatermarkFromImageDataSync,
-    type ImageDataLike
-} from 'gemini-watermark-remover';
-import {
-    inferMimeTypeFromPath,
-    type NodeBufferRemovalOptions
-} from 'gemini-watermark-remover/node';
-
-const imageData: ImageDataLike = {
-    width: 64,
-    height: 64,
-    data: new Uint8ClampedArray(64 * 64 * 4)
-};
-
-const enginePromise = createWatermarkEngine();
-const result = removeWatermarkFromImageDataSync(imageData, { adaptiveMode: 'never', maxPasses: 1 });
-const mimeType = inferMimeTypeFromPath('demo.png');
-
-const options: NodeBufferRemovalOptions = {
-    mimeType,
-    decodeImageData() {
-        return imageData;
-    },
-    encodeImageData() {
-        return Buffer.from([]);
-    }
-};
-
-void enginePromise;
-void result.meta;
-void options;
-`, 'utf8');
 
     run('pnpm', ['exec', 'tsc', '--project', tsconfigPath, '--pretty', 'false'], ROOT_DIR);
 });

@@ -108,6 +108,7 @@ import {
   createWatermarkEngine,
   removeWatermarkFromImage,
   removeWatermarkFromImageData,
+  removeWatermarkFromImageDataSync,
 } from 'gemini-watermark-remover';
 ```
 
@@ -136,6 +137,18 @@ console.log(meta.applied, meta.decisionTier);
 const engine = await createWatermarkEngine();
 const first = await removeWatermarkFromImageData(imageDataA, { engine });
 const second = await removeWatermarkFromImageData(imageDataB, { engine });
+```
+
+如果你在 Node.js 里接入，可使用专门的子入口，并注入自己的解码/编码器：
+
+```javascript
+import { removeWatermarkFromBuffer } from 'gemini-watermark-remover/node';
+
+const result = await removeWatermarkFromBuffer(inputBuffer, {
+  mimeType: 'image/png',
+  decodeImageData: yourDecodeFn,
+  encodeImageData: yourEncodeFn,
+});
 ```
 
 ## Gemini 水印去除算法原理

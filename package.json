@@ -3,6 +3,13 @@
   "description": "Automatically removes watermarks from Gemini AI generated images",
   "version": "1.0.0",
   "author": "journey-ad",
+  "sideEffects": false,
+  "files": [
+    "src/",
+    "README.md",
+    "README_zh.md",
+    "LICENSE"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/GargantuaX/gemini-watermark-remover.git"

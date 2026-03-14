@@ -109,6 +109,7 @@ import {
   createWatermarkEngine,
   removeWatermarkFromImage,
   removeWatermarkFromImageData,
+  removeWatermarkFromImageDataSync,
 } from 'gemini-watermark-remover';
 ```
 
@@ -137,6 +138,18 @@ If you need to process many images, reuse a single engine instance so alpha maps
 const engine = await createWatermarkEngine();
 const first = await removeWatermarkFromImageData(imageDataA, { engine });
 const second = await removeWatermarkFromImageData(imageDataB, { engine });
+```
+
+For Node.js integrations, use the dedicated subpath and inject your own decoder/encoder:
+
+```javascript
+import { removeWatermarkFromBuffer } from 'gemini-watermark-remover/node';
+
+const result = await removeWatermarkFromBuffer(inputBuffer, {
+  mimeType: 'image/png',
+  decodeImageData: yourDecodeFn,
+  encodeImageData: yourEncodeFn,
+});
 ```
 
 ## Testing

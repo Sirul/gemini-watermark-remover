@@ -270,7 +270,7 @@ pnpm test:extension-smoke
 
 ## 发版说明
 
-版本变更请看 [CHANGELOG.md](CHANGELOG.md)，本地发版清单见 [RELEASE.md](RELEASE.md)。
+版本变更请看 [CHANGELOG_zh.md](CHANGELOG_zh.md)，本地发版清单见 [RELEASE_zh.md](RELEASE_zh.md)。
 
 ## 项目结构
 

@@ -2,7 +2,7 @@
   "name": "gemini-watermark-remover",
   "description": "Automatically removes watermarks from Gemini AI generated images",
   "version": "1.0.1",
-  "author": "journey-ad",
+  "author": "GargantuaX",
   "sideEffects": false,
   "files": [
     "src/core/",

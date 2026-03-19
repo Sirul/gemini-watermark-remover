@@ -139,8 +139,11 @@ export function inferImageMimeTypeFromBytes(buffer) {
   return '';
 }
 
-async function fetchBlobFromBackground(sendRuntimeMessage, url) {
+export async function fetchBlobFromBackground(sendRuntimeMessage, url, fallbackFetchBlob = null) {
   if (!sendRuntimeMessage) {
+    if (typeof fallbackFetchBlob === 'function') {
+      return fallbackFetchBlob(url);
+    }
     return fetchBlobDirect(url);
   }
 
@@ -994,7 +997,11 @@ export function createPageImageReplacementController({
         const originalBlob = await acquireOriginalBlob({
           sourceUrl,
           image: imageElement,
-          fetchBlobFromBackground: async (url) => fetchBlobFromBackground(sendRuntimeMessage, normalizeGoogleusercontentImageUrl(url)),
+          fetchBlobFromBackground: async (url) => fetchBlobFromBackground(
+            sendRuntimeMessage,
+            normalizeGoogleusercontentImageUrl(url),
+            fetchPreviewBlob
+          ),
           fetchBlobDirect,
           captureRenderedImageBlob: imageElementToBlob,
           captureVisibleElementBlob: async (image) => captureVisibleElementBlob(sendRuntimeMessage, image),

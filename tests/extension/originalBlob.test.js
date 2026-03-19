@@ -30,6 +30,33 @@ test('acquireOriginalBlob should fetch Gemini asset urls through background', as
   ]);
 });
 
+test('acquireOriginalBlob should fetch Gemini gg-dl asset urls through background', async () => {
+  const backgroundBlob = new Blob(['background'], { type: 'image/png' });
+  const calls = [];
+
+  const blob = await acquireOriginalBlob({
+    sourceUrl: 'https://lh3.googleusercontent.com/gg-dl/example=s1024-rj',
+    image: { id: 'fixture-image' },
+    fetchBlobFromBackground: async (url) => {
+      calls.push(['background', url]);
+      return backgroundBlob;
+    },
+    fetchBlobDirect: async (url) => {
+      calls.push(['direct', url]);
+      return new Blob(['direct'], { type: 'image/png' });
+    },
+    captureRenderedImageBlob: async (image) => {
+      calls.push(['capture', image]);
+      return new Blob(['capture'], { type: 'image/png' });
+    }
+  });
+
+  assert.equal(blob, backgroundBlob);
+  assert.deepEqual(calls, [
+    ['background', 'https://lh3.googleusercontent.com/gg-dl/example=s1024-rj']
+  ]);
+});
+
 test('acquireOriginalBlob should prefer visible capture for Gemini gg preview urls when available', async () => {
   const visibleBlob = new Blob(['visible-capture'], { type: 'image/png' });
   const fixtureImage = { id: 'fixture-image' };

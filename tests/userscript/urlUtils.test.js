@@ -36,6 +36,12 @@ test('normalizeGoogleusercontentImageUrl should normalize Gemini gg render urls 
     assert.equal(out, 'https://lh3.googleusercontent.com/gg/example-token=s0-rj');
 });
 
+test('normalizeGoogleusercontentImageUrl should normalize Gemini gg-dl urls to original-size fetch urls', () => {
+    const input = 'https://lh3.googleusercontent.com/gg-dl/example-token=s1024-rj';
+    const out = normalizeGoogleusercontentImageUrl(input);
+    assert.equal(out, 'https://lh3.googleusercontent.com/gg-dl/example-token=s0-rj');
+});
+
 test('normalizeGoogleusercontentImageUrl should replace width-height transform at tail', () => {
     const input = 'https://lh3.googleusercontent.com/rd-gg/abc123=w2048-h2048';
     const out = normalizeGoogleusercontentImageUrl(input);
@@ -65,6 +71,7 @@ test('isGeminiGeneratedAssetUrl should only match Gemini asset url', () => {
     assert.equal(isGeminiGeneratedAssetUrl('https://lh3.googleusercontent.com/rd-gg-dl/abc=s1024-d'), true);
     assert.equal(isGeminiGeneratedAssetUrl('https://lh3.googleusercontent.com/rd-new-path/abc=s1024-d'), true);
     assert.equal(isGeminiGeneratedAssetUrl('https://lh3.googleusercontent.com/gg/abc=s1024-rj'), true);
+    assert.equal(isGeminiGeneratedAssetUrl('https://lh3.googleusercontent.com/gg-dl/abc=s1024-rj'), true);
     assert.equal(isGeminiGeneratedAssetUrl('https://lh3.googleusercontent.com/abc=s1024'), false);
     assert.equal(isGeminiGeneratedAssetUrl('https://example.com/rd-gg/abc=s1024'), false);
 });

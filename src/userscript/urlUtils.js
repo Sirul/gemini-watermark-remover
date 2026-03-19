@@ -3,7 +3,7 @@ function isGoogleusercontentHost(hostname) {
 }
 
 function hasGeminiAssetPath(pathname) {
-  return /^\/(?:rd-[^/]+|gg)\//.test(pathname);
+  return /^\/(?:rd-[^/]+|gg(?:-[^/]+)?)\//.test(pathname);
 }
 
 export function isGeminiGeneratedAssetUrl(url) {

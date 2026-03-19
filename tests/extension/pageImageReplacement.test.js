@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   buildPreviewReplacementCandidates,
+  fetchBlobFromBackground,
   hideProcessingOverlay,
   inferImageMimeTypeFromBytes,
   intersectCaptureRectWithViewport,
@@ -370,6 +371,25 @@ test('buildPreviewReplacementCandidates should prefer page fetch when an origina
     ['page-fetch', 'rendered-capture']
   );
   assert.equal(await candidates[0].getOriginalBlob(), fetchedBlob);
+});
+
+test('fetchBlobFromBackground should use provided page fetcher when runtime messaging is unavailable', async () => {
+  const fetchedBlob = new Blob(['gm-fetch'], { type: 'image/webp' });
+  const calls = [];
+
+  const blob = await fetchBlobFromBackground(
+    null,
+    'https://lh3.googleusercontent.com/gg-dl/example-token=s0-rj',
+    async (url) => {
+      calls.push(url);
+      return fetchedBlob;
+    }
+  );
+
+  assert.equal(blob, fetchedBlob);
+  assert.deepEqual(calls, [
+    'https://lh3.googleusercontent.com/gg-dl/example-token=s0-rj'
+  ]);
 });
 
 test('showProcessingOverlay should append one overlay and apply a subdued processing look to the image', () => {

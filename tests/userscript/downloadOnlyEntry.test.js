@@ -9,6 +9,7 @@ test('userscript entry should install both download hook and page image replacem
   assert.doesNotMatch(source, /querySelectorAll\('img/);
   assert.doesNotMatch(source, /imgElement\.src\s*=\s*''/);
   assert.match(source, /installGeminiDownloadHook/);
+  assert.match(source, /installGeminiDownloadClickHandler/);
   assert.match(source, /installPageImageReplacement/);
   assert.match(source, /installUserscriptProcessBridge/);
   assert.match(source, /createUserscriptProcessBridgeClient/);

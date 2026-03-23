@@ -1,5 +1,6 @@
 import { installPageImageReplacement } from '../shared/pageImageReplacement.js';
 import { installGeminiDownloadHook } from './downloadHook.js';
+import { installGeminiDownloadClickHandler } from './downloadClick.js';
 import { createUserscriptBlobFetcher } from './crossOriginFetch.js';
 import {
   createUserscriptProcessBridgeClient,
@@ -23,6 +24,10 @@ const USERSCRIPT_WORKER_CODE = typeof __US_WORKER_CODE__ === 'string' ? __US_WOR
     const userscriptRequest = typeof GM_xmlhttpRequest === 'function'
       ? GM_xmlhttpRequest
       : globalThis.GM_xmlhttpRequest;
+    const previewBlobFetcher = createUserscriptBlobFetcher({
+      gmRequest: userscriptRequest,
+      fallbackFetch: originalPageFetch
+    });
 
     const processingRuntime = createUserscriptProcessingRuntime({
       workerCode: USERSCRIPT_WORKER_CODE,
@@ -52,12 +57,16 @@ const USERSCRIPT_WORKER_CODE = typeof __US_WORKER_CODE__ === 'string' ? __US_WOR
       logger: console
     });
 
+    installGeminiDownloadClickHandler({
+      targetDocument: targetWindow.document || document,
+      fetchPreviewBlob: previewBlobFetcher,
+      removeWatermarkFromBlobImpl: bridgeClient.removeWatermarkFromBlob,
+      logger: console
+    });
+
     installPageImageReplacement({
       logger: console,
-      fetchPreviewBlob: createUserscriptBlobFetcher({
-        gmRequest: userscriptRequest,
-        fallbackFetch: originalPageFetch
-      }),
+      fetchPreviewBlob: previewBlobFetcher,
       processWatermarkBlobImpl: bridgeClient.processWatermarkBlob,
       removeWatermarkFromBlobImpl: bridgeClient.removeWatermarkFromBlob
     });

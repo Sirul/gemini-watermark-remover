@@ -806,10 +806,12 @@ test('emitPageImageProcessingStart should emit preview start and strategy events
 test('applyPageImageProcessingResult should apply ready state and emit success payload', async () => {
   await withPageImageTestEnv(async ({ MockHTMLImageElement }) => {
     const logs = [];
+    const container = createMockElement('div');
     const image = new MockHTMLImageElement();
     image.dataset = {};
     image.style = {};
     image.src = 'https://lh3.googleusercontent.com/gg/example-token=s1024-rj';
+    image.parentElement = container;
 
     const processedBlob = new Blob(['processed'], { type: 'image/png' });
 
@@ -831,7 +833,10 @@ test('applyPageImageProcessingResult should apply ready state and emit success p
 
     assert.equal(image.dataset.gwrPageImageState, 'ready');
     assert.equal(image.dataset.gwrWatermarkObjectUrl, `blob:mock:${processedBlob.size}`);
-    assert.equal(image.src, `blob:mock:${processedBlob.size}`);
+    assert.equal(image.src, 'https://lh3.googleusercontent.com/gg/example-token=s1024-rj');
+    assert.equal(container.children.length, 1);
+    assert.equal(container.children[0].dataset.gwrPreviewImage, 'true');
+    assert.equal(container.children[0].src, `blob:mock:${processedBlob.size}`);
     assert.deepEqual(logs.map(([type]) => type), ['page-image-process-success']);
     assert.equal(logs[0][1].strategy, 'preview-candidate');
     assert.equal(logs[0][1].blobType, 'image/png');
@@ -934,7 +939,10 @@ test('createPageImageReplacementController should apply successful helper result
 
     assert.equal(image.dataset.gwrPageImageState, 'ready');
     assert.equal(image.dataset.gwrWatermarkObjectUrl, `blob:mock:${previewBlob.size}`);
-    assert.equal(image.src, `blob:mock:${previewBlob.size}`);
+    assert.equal(image.src, 'https://lh3.googleusercontent.com/gg/example-token=s1024-rj');
+    assert.equal(container.children.length, 1);
+    assert.equal(container.children[0].dataset.gwrPreviewImage, 'true');
+    assert.equal(container.children[0].src, `blob:mock:${previewBlob.size}`);
     assert.deepEqual(
       logs.map(([type]) => type),
       ['page-image-process-start', 'page-image-process-strategy', 'page-image-process-success']

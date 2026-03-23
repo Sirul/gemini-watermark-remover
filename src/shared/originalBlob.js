@@ -25,11 +25,12 @@ export async function acquireOriginalBlob({
   fetchBlobFromBackground,
   fetchBlobDirect,
   captureRenderedImageBlob,
-  validateBlob
+  validateBlob,
+  preferRenderedCaptureForPreview = true
 }) {
   const normalizedSourceUrl = typeof sourceUrl === 'string' ? sourceUrl.trim() : '';
 
-  if (shouldPreferRenderedCapture(normalizedSourceUrl)) {
+  if (preferRenderedCaptureForPreview && shouldPreferRenderedCapture(normalizedSourceUrl)) {
     return captureRenderedBlob({
       image,
       captureRenderedImageBlob

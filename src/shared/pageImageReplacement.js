@@ -20,6 +20,7 @@ const PAGE_IMAGE_SOURCE_KEY = 'gwrPageImageSource';
 const PAGE_IMAGE_OBJECT_URL_KEY = 'gwrWatermarkObjectUrl';
 const PROCESSING_OVERLAY_DATA_KEY = 'gwrProcessingOverlay';
 const PROCESSING_VISUAL_DATA_KEY = 'gwrProcessingVisual';
+const PREVIEW_OVERLAY_DATA_KEY = 'gwrPreviewImage';
 const OBSERVED_ATTRIBUTES = ['src', 'srcset', 'data-gwr-source-url'];
 const PAGE_FETCH_REQUEST = 'gwr:page-fetch-request';
 const PAGE_FETCH_RESPONSE = 'gwr:page-fetch-response';
@@ -29,6 +30,7 @@ const MIN_VISIBLE_CAPTURE_AREA = MIN_VISIBLE_CAPTURE_EDGE * MIN_VISIBLE_CAPTURE_
 const CONTAINER_CAPTURE_AREA_RATIO = 4;
 
 const processingOverlayState = new WeakMap();
+const previewOverlayState = new WeakMap();
 
 function appendLog(onLog, type, payload = {}) {
   if (typeof onLog === 'function') {
@@ -624,7 +626,8 @@ export async function processOriginalPageImageSource({
   captureRenderedImageBlob = imageElementToBlob,
   fetchBlobDirectImpl = fetchBlobDirect,
   validateBlob = loadImageFromBlob,
-  fetchBlobFromBackgroundImpl = fetchBlobFromBackground
+  fetchBlobFromBackgroundImpl = fetchBlobFromBackground,
+  preferRenderedCaptureForPreview = true
 }) {
   const originalBlob = await acquireOriginalBlob({
     sourceUrl,
@@ -635,7 +638,8 @@ export async function processOriginalPageImageSource({
     ),
     fetchBlobDirect: fetchBlobDirectImpl,
     captureRenderedImageBlob,
-    validateBlob
+    validateBlob,
+    preferRenderedCaptureForPreview
   });
 
   return {
@@ -1020,6 +1024,18 @@ export function hideProcessingOverlay(
 }
 
 function revokeTrackedObjectUrl(imageElement) {
+  const previewState = previewOverlayState.get(imageElement);
+  if (previewState?.overlay?.parentNode && typeof previewState.overlay.parentNode.removeChild === 'function') {
+    previewState.overlay.parentNode.removeChild(previewState.overlay);
+  }
+  if (previewState?.overlay?.style && typeof previewState.overlay.style === 'object') {
+    previewState.overlay.style.opacity = '0';
+  }
+  if (imageElement?.style && typeof imageElement.style === 'object') {
+    imageElement.style.opacity = previewState?.previousOpacity ?? '';
+  }
+  previewOverlayState.delete(imageElement);
+
   const objectUrl = imageElement?.dataset?.[PAGE_IMAGE_OBJECT_URL_KEY];
   if (!objectUrl) return;
   URL.revokeObjectURL(objectUrl);
@@ -1036,7 +1052,38 @@ function applyReadyImageState(imageElement, processedBlob) {
   revokeTrackedObjectUrl(imageElement);
   imageElement.dataset[PAGE_IMAGE_OBJECT_URL_KEY] = objectUrl;
   imageElement.dataset[PAGE_IMAGE_STATE_KEY] = 'ready';
-  imageElement.src = objectUrl;
+  const container = getPreferredGeminiImageContainer(imageElement) || imageElement?.parentElement || null;
+  if (container && typeof container.appendChild === 'function') {
+    const overlay = document.createElement('img');
+    overlay.dataset[PREVIEW_OVERLAY_DATA_KEY] = 'true';
+    overlay.src = objectUrl;
+    if (overlay.style && typeof overlay.style === 'object') {
+      Object.assign(overlay.style, {
+        position: 'absolute',
+        inset: '0',
+        width: '100%',
+        height: '100%',
+        objectFit: 'contain',
+        pointerEvents: 'none'
+      });
+    }
+    if (
+      container.style
+      && typeof container.style === 'object'
+      && (!container.style.position || container.style.position === 'static')
+    ) {
+      container.style.position = 'relative';
+    }
+    container.appendChild(overlay);
+    const previousOpacity = typeof imageElement?.style?.opacity === 'string' ? imageElement.style.opacity : '';
+    if (imageElement?.style && typeof imageElement.style === 'object') {
+      imageElement.style.opacity = '0';
+    }
+    previewOverlayState.set(imageElement, {
+      overlay,
+      previousOpacity
+    });
+  }
   hideProcessingOverlay(imageElement);
 }
 

@@ -368,3 +368,37 @@ test('acquireOriginalBlob should surface rendered capture errors for Gemini gg p
     ['capture', fixtureImage]
   ]);
 });
+
+test('acquireOriginalBlob should fetch Gemini gg preview urls through background when rendered preview capture is disabled', async () => {
+  const backgroundBlob = new Blob(['background'], { type: 'image/png' });
+  const fixtureImage = { id: 'fixture-image' };
+  const calls = [];
+
+  const blob = await acquireOriginalBlob({
+    sourceUrl: 'https://lh3.googleusercontent.com/gg/example-token=s1024-rj',
+    image: fixtureImage,
+    fetchBlobFromBackground: async (url) => {
+      calls.push(['background', url]);
+      return backgroundBlob;
+    },
+    fetchBlobDirect: async (url) => {
+      calls.push(['direct', url]);
+      return new Blob(['direct'], { type: 'image/png' });
+    },
+    captureRenderedImageBlob: async (image) => {
+      calls.push(['capture', image]);
+      return new Blob(['capture'], { type: 'image/png' });
+    },
+    validateBlob: async (blob) => {
+      calls.push(['validate', blob]);
+      return { width: 1, height: 1 };
+    },
+    preferRenderedCaptureForPreview: false
+  });
+
+  assert.equal(blob, backgroundBlob);
+  assert.deepEqual(calls, [
+    ['background', 'https://lh3.googleusercontent.com/gg/example-token=s1024-rj'],
+    ['validate', backgroundBlob]
+  ]);
+});

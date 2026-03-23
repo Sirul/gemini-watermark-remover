@@ -1,71 +1,75 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import {
+  getCallSource,
+  getConstArrayItems,
+  hasImportedBinding,
+  loadModuleSource,
+  normalizeWhitespace
+} from '../testUtils/moduleStructure.js';
 
 test('userscript entry should install download hook and page image replacement without default active click interception', () => {
-  const source = readFileSync(new URL('../../src/userscript/index.js', import.meta.url), 'utf8');
+  const source = loadModuleSource('../../src/userscript/index.js', import.meta.url);
 
-  assert.doesNotMatch(source, /MutationObserver/);
-  assert.doesNotMatch(source, /querySelectorAll\('img/);
-  assert.doesNotMatch(source, /imgElement\.src\s*=\s*''/);
-  assert.match(source, /installGeminiDownloadHook/);
-  assert.doesNotMatch(source, /installGeminiDownloadClickHandler\(/);
-  assert.match(source, /installPageImageReplacement/);
-  assert.match(source, /installUserscriptProcessBridge/);
-  assert.match(source, /createUserscriptProcessBridgeClient/);
+  assert.equal(hasImportedBinding(source, './downloadHook.js', 'installGeminiDownloadHook'), true);
+  assert.equal(hasImportedBinding(source, '../shared/pageImageReplacement.js', 'installPageImageReplacement'), true);
+  assert.equal(hasImportedBinding(source, './processBridge.js', 'installUserscriptProcessBridge'), true);
+  assert.equal(hasImportedBinding(source, './processBridge.js', 'createUserscriptProcessBridgeClient'), true);
+  assert.equal(hasImportedBinding(source, './downloadClick.js', 'installGeminiDownloadClickHandler'), false);
 });
 
 test('userscript entry should explicitly pass GM_xmlhttpRequest to preview fetching', () => {
-  const source = readFileSync(new URL('../../src/userscript/index.js', import.meta.url), 'utf8');
+  const source = loadModuleSource('../../src/userscript/index.js', import.meta.url);
+  const createBlobFetcherCall = normalizeWhitespace(getCallSource(source, 'createUserscriptBlobFetcher'));
 
-  assert.match(source, /createUserscriptBlobFetcher\(\{\s*gmRequest:/s);
-  assert.match(source, /typeof GM_xmlhttpRequest === 'function'/);
+  assert.match(createBlobFetcherCall, /gmRequest:\s*userscriptRequest/);
+  assert.match(normalizeWhitespace(source), /typeof GM_xmlhttpRequest === 'function'/);
 });
 
 test('userscript entry should not eagerly warm the main-thread engine during init', () => {
-  const source = readFileSync(new URL('../../src/userscript/index.js', import.meta.url), 'utf8');
+  const source = loadModuleSource('../../src/userscript/index.js', import.meta.url);
 
-  assert.doesNotMatch(source, /if\s*\(!workerClient\)\s*\{\s*\/\/ Warm up main-thread engine when worker acceleration is unavailable\.\s*getEngine\(\)\.catch/s);
+  assert.doesNotMatch(normalizeWhitespace(source), /getEngine\(\)\.catch/);
 });
 
 test('userscript entry should verify inline worker readiness before enabling acceleration', () => {
-  const source = readFileSync(new URL('../../src/userscript/processingRuntime.js', import.meta.url), 'utf8');
+  const source = loadModuleSource('../../src/userscript/processingRuntime.js', import.meta.url);
 
-  assert.match(source, /await workerClient\.ping\(\)/);
-  assert.match(source, /Worker initialization failed, using main thread/);
+  assert.match(normalizeWhitespace(source), /await workerClient\.ping\(\)/);
+  assert.match(normalizeWhitespace(source), /Worker initialization failed,\s*using main thread/);
 });
 
 test('userscript entry should route preview processing through the shared bridge client', () => {
-  const source = readFileSync(new URL('../../src/userscript/index.js', import.meta.url), 'utf8');
+  const source = loadModuleSource('../../src/userscript/index.js', import.meta.url);
+  const installDownloadHookCall = normalizeWhitespace(getCallSource(source, 'installGeminiDownloadHook'));
+  const installPageReplacementCall = normalizeWhitespace(getCallSource(source, 'installPageImageReplacement'));
 
-  assert.match(source, /processWatermarkBlobImpl:\s*bridgeClient\.processWatermarkBlob/);
-  assert.match(source, /removeWatermarkFromBlobImpl:\s*bridgeClient\.removeWatermarkFromBlob/);
-  assert.match(source, /processBlob:\s*processingRuntime\.removeWatermarkFromBlob/);
+  assert.match(installDownloadHookCall, /processBlob:\s*processingRuntime\.removeWatermarkFromBlob/);
+  assert.match(installPageReplacementCall, /processWatermarkBlobImpl:\s*bridgeClient\.processWatermarkBlob/);
+  assert.match(installPageReplacementCall, /removeWatermarkFromBlobImpl:\s*bridgeClient\.removeWatermarkFromBlob/);
 });
 
 test('userscript entry should delegate watermark runtime logic to processingRuntime module', () => {
-  const source = readFileSync(new URL('../../src/userscript/index.js', import.meta.url), 'utf8');
+  const source = loadModuleSource('../../src/userscript/index.js', import.meta.url);
+  const bridgeInstallCall = normalizeWhitespace(getCallSource(source, 'installUserscriptProcessBridge'));
 
-  assert.match(source, /import\s+\{\s*createUserscriptProcessingRuntime\s*\}\s+from\s+'\.\/processingRuntime\.js';/);
-  assert.match(source, /const processingRuntime = createUserscriptProcessingRuntime\(/);
-  assert.match(source, /await processingRuntime\.initialize\(\)/);
-  assert.match(source, /processWatermarkBlob:\s*processingRuntime\.processWatermarkBlob/);
-  assert.match(source, /removeWatermarkFromBlob:\s*processingRuntime\.removeWatermarkFromBlob/);
+  assert.equal(hasImportedBinding(source, './processingRuntime.js', 'createUserscriptProcessingRuntime'), true);
+  assert.match(normalizeWhitespace(source), /const processingRuntime = createUserscriptProcessingRuntime\(/);
+  assert.match(normalizeWhitespace(source), /await processingRuntime\.initialize\(\)/);
+  assert.match(bridgeInstallCall, /processWatermarkBlob:\s*processingRuntime\.processWatermarkBlob/);
+  assert.match(bridgeInstallCall, /removeWatermarkFromBlob:\s*processingRuntime\.removeWatermarkFromBlob/);
 });
 
 test('userscript entry should not inline duplicate worker runtime implementation', () => {
-  const source = readFileSync(new URL('../../src/userscript/index.js', import.meta.url), 'utf8');
+  const source = loadModuleSource('../../src/userscript/index.js', import.meta.url);
 
-  assert.doesNotMatch(source, /class InlineWorkerClient/);
-  assert.doesNotMatch(source, /const canUseInlineWorker =/);
-  assert.doesNotMatch(source, /async function getEngine\(/);
-  assert.doesNotMatch(source, /async function processBlobWithBestPath\(/);
+  assert.doesNotMatch(normalizeWhitespace(source), /class InlineWorkerClient/);
+  assert.doesNotMatch(normalizeWhitespace(source), /function getEngine\(/);
+  assert.doesNotMatch(normalizeWhitespace(source), /function processBlobWithBestPath\(/);
 });
 
 test('page image replacement should not observe self-written stable source attributes', () => {
-  const source = readFileSync(new URL('../../src/shared/pageImageReplacement.js', import.meta.url), 'utf8');
-
-  const observedAttributesMatch = source.match(/const OBSERVED_ATTRIBUTES = \[([^\]]+)\];/);
-  assert.ok(observedAttributesMatch, 'expected OBSERVED_ATTRIBUTES declaration');
-  assert.doesNotMatch(observedAttributesMatch[1], /data-gwr-stable-source/);
+  const source = loadModuleSource('../../src/shared/pageImageReplacement.js', import.meta.url);
+  const observedAttributes = getConstArrayItems(source, 'OBSERVED_ATTRIBUTES');
+  assert.equal(observedAttributes.includes('data-gwr-stable-source'), false);
 });

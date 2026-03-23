@@ -1,12 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { hasImportedBinding, loadModuleSource } from '../testUtils/moduleStructure.js';
 
 test('userscript entry should import shared page image replacement from src/shared', () => {
-  const source = readFileSync(new URL('../../src/userscript/index.js', import.meta.url), 'utf8');
+  const source = loadModuleSource('../../src/userscript/index.js', import.meta.url);
 
-  assert.match(source, /from '\.\.\/shared\/pageImageReplacement\.js'/);
-  assert.doesNotMatch(source, /from '\.\.\/extension\/pageImageReplacement\.js'/);
+  assert.equal(hasImportedBinding(source, '../shared/pageImageReplacement.js', 'installPageImageReplacement'), true);
+  assert.equal(hasImportedBinding(source, '../extension/pageImageReplacement.js', 'installPageImageReplacement'), false);
 });
 
 test('shared Gemini page-processing modules should live under src/shared instead of src/extension', () => {

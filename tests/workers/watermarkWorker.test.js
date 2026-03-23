@@ -1,11 +1,42 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 
-test('watermark worker should respond to ping messages before image processing', () => {
-  const source = readFileSync(new URL('../../src/workers/watermarkWorker.js', import.meta.url), 'utf8');
+test('watermark worker should respond to ping messages before image processing', async () => {
+  const listeners = new Map();
+  const messages = [];
+  const originalSelf = globalThis.self;
 
-  assert.match(source, /payload\.type === 'ping'/);
-  assert.match(source, /ready:\s*true/);
-  assert.match(source, /payload\.type !== 'process-image'/);
+  globalThis.self = {
+    addEventListener(type, listener) {
+      listeners.set(type, listener);
+    },
+    postMessage(payload) {
+      messages.push(payload);
+    }
+  };
+
+  try {
+    const cacheBustUrl = new URL(`../../src/workers/watermarkWorker.js?ts=${Date.now()}`, import.meta.url);
+    await import(cacheBustUrl.href);
+
+    const messageHandler = listeners.get('message');
+    assert.equal(typeof messageHandler, 'function');
+
+    await messageHandler({
+      data: {
+        id: 'ping-1',
+        type: 'ping'
+      }
+    });
+
+    assert.deepEqual(messages, [{
+      id: 'ping-1',
+      ok: true,
+      result: {
+        ready: true
+      }
+    }]);
+  } finally {
+    globalThis.self = originalSelf;
+  }
 });

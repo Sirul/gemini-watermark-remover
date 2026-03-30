@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.6 - 2026-03-30
+
+### Userscript
+
+- Unified Gemini preview, fullscreen, clipboard, and download actions around a shared image-session and `actionContext` pipeline.
+- Reused processed session resources across surfaces so fullscreen copy/download can resolve the same processed image identity more reliably.
+- Removed deprecated userscript legacy intent aliases from the active runtime path to simplify release behavior before shipping.
+
+### Quality
+
+- Added focused coverage for `actionContext`, shared image-session resolution, and userscript hook behavior after the release cleanup.
+- Re-verified the release with a fresh full test run and production build.
+
 ## 1.0.2 - 2026-03-20
 
 ### Userscript

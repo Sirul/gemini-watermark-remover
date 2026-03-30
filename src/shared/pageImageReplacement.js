@@ -95,20 +95,22 @@ export function buildRecentImageSourceHint(imageElement, {
   resolveSourceUrl = resolveCandidateImageUrl,
   resolveAssetIds = extractGeminiImageAssetIds
 } = {}) {
+  const assetIds = typeof resolveAssetIds === 'function'
+    ? resolveAssetIds(imageElement)
+    : null;
   const sourceUrl = typeof resolveSourceUrl === 'function'
     ? String(resolveSourceUrl(imageElement) || '').trim()
     : '';
-  if (!sourceUrl || isBlobPageImageSource(sourceUrl) || isDataPageImageSource(sourceUrl)) {
+  const hasUsableSourceUrl = Boolean(sourceUrl) && !isBlobPageImageSource(sourceUrl) && !isDataPageImageSource(sourceUrl);
+  if (!hasUsableSourceUrl && !hasAnyAssetIds(assetIds)) {
     return null;
   }
 
   return {
-    sourceUrl,
+    sourceUrl: hasUsableSourceUrl ? sourceUrl : '',
     createdAt: Number(now) || 0,
     size: getComparableImageSize(imageElement),
-    assetIds: typeof resolveAssetIds === 'function'
-      ? resolveAssetIds(imageElement)
-      : null
+    assetIds
   };
 }
 
@@ -127,10 +129,6 @@ export function applyRecentImageSourceHintToImage(imageElement, hint, {
   }
 
   const dataset = imageElement.dataset || (imageElement.dataset = {});
-  if (typeof dataset.gwrSourceUrl === 'string' && dataset.gwrSourceUrl.trim()) {
-    return false;
-  }
-
   const currentSourceUrl = resolveCandidateImageUrl(imageElement);
   if (!isBlobPageImageSource(currentSourceUrl) && !isDataPageImageSource(currentSourceUrl)) {
     return false;
@@ -149,17 +147,28 @@ export function applyRecentImageSourceHintToImage(imageElement, hint, {
     return false;
   }
 
-  dataset.gwrSourceUrl = hint.sourceUrl;
+  let applied = false;
+  const rememberedSourceUrl = !hint.sourceUrl && hasAnyAssetIds(hint.assetIds)
+    ? resolveRememberedOriginalAssetUrl(hint.assetIds)
+    : '';
+  const resolvedHintSourceUrl = hint.sourceUrl || rememberedSourceUrl;
+  if (resolvedHintSourceUrl && !(typeof dataset.gwrSourceUrl === 'string' && dataset.gwrSourceUrl.trim())) {
+    dataset.gwrSourceUrl = resolvedHintSourceUrl;
+    applied = true;
+  }
   if (!dataset[PAGE_IMAGE_RESPONSE_ID_KEY] && hint.assetIds?.responseId) {
     dataset[PAGE_IMAGE_RESPONSE_ID_KEY] = hint.assetIds.responseId;
+    applied = true;
   }
   if (!dataset[PAGE_IMAGE_DRAFT_ID_KEY] && hint.assetIds?.draftId) {
     dataset[PAGE_IMAGE_DRAFT_ID_KEY] = hint.assetIds.draftId;
+    applied = true;
   }
   if (!dataset[PAGE_IMAGE_CONVERSATION_ID_KEY] && hint.assetIds?.conversationId) {
     dataset[PAGE_IMAGE_CONVERSATION_ID_KEY] = hint.assetIds.conversationId;
+    applied = true;
   }
-  return true;
+  return applied;
 }
 
 function resolveHintSourceImageFromEventTarget(target) {

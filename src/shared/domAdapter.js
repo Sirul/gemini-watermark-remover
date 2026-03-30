@@ -184,12 +184,28 @@ export function extractGeminiImageAssetIds(img) {
     return assetIds;
   }
 
+  const responseIdFromDataset = normalizeGeminiAssetId(
+    typeof img?.dataset?.gwrResponseId === 'string' ? img.dataset.gwrResponseId : null,
+    'r_'
+  );
+  if (responseIdFromDataset) {
+    assetIds.responseId = responseIdFromDataset;
+  }
+
   const draftIdFromDataset = normalizeGeminiAssetId(
     typeof img?.dataset?.gwrDraftId === 'string' ? img.dataset.gwrDraftId : null,
     'rc_'
   );
   if (draftIdFromDataset) {
     assetIds.draftId = draftIdFromDataset;
+  }
+
+  const conversationIdFromDataset = normalizeGeminiAssetId(
+    typeof img?.dataset?.gwrConversationId === 'string' ? img.dataset.gwrConversationId : null,
+    'c_'
+  );
+  if (conversationIdFromDataset) {
+    assetIds.conversationId = conversationIdFromDataset;
   }
 
   for (const element of collectGeminiMetadataElements(img)) {

@@ -1318,6 +1318,42 @@ test('buildRecentImageSourceHint should capture source url and asset ids from th
   });
 });
 
+test('buildRecentImageSourceHint should retain asset ids even when the clicked preview image only has a blob source', async () => {
+  await withPageImageTestEnv(async ({ MockHTMLImageElement }) => {
+    const image = new MockHTMLImageElement();
+    image.dataset = {
+      gwrResponseId: 'r_hint123',
+      gwrDraftId: 'rc_hint123',
+      gwrConversationId: 'c_hint123'
+    };
+    image.src = 'blob:https://gemini.google.com/runtime-preview';
+    image.currentSrc = image.src;
+    image.naturalWidth = 1024;
+    image.naturalHeight = 559;
+    image.closest = (selector) => selector === 'generated-image,.generated-image-container'
+      ? {}
+      : null;
+
+    const hint = buildRecentImageSourceHint(image, {
+      now: 1234
+    });
+
+    assert.deepEqual(hint, {
+      sourceUrl: '',
+      createdAt: 1234,
+      size: {
+        width: 1024,
+        height: 559
+      },
+      assetIds: {
+        responseId: 'r_hint123',
+        draftId: 'rc_hint123',
+        conversationId: 'c_hint123'
+      }
+    });
+  });
+});
+
 test('applyRecentImageSourceHintToImage should promote a fullscreen blob image to the clicked preview source', async () => {
   await withPageImageTestEnv(async ({ MockHTMLImageElement }) => {
     const image = new MockHTMLImageElement();
@@ -1426,6 +1462,42 @@ test('applyRecentImageSourceHintToImage should ignore mismatched asset ids on fu
   });
 });
 
+test('applyRecentImageSourceHintToImage should transfer asset ids to fullscreen blob images even when preview source url is unavailable', async () => {
+  await withPageImageTestEnv(async ({ MockHTMLImageElement }) => {
+    const image = new MockHTMLImageElement();
+    image.dataset = {};
+    image.src = 'blob:https://gemini.google.com/fullscreen-cached';
+    image.currentSrc = image.src;
+    image.naturalWidth = 1024;
+    image.naturalHeight = 559;
+    image.closest = (selector) => selector === 'generated-image,.generated-image-container'
+      ? {}
+      : null;
+
+    const applied = applyRecentImageSourceHintToImage(image, {
+      sourceUrl: '',
+      createdAt: 1000,
+      size: {
+        width: 1024,
+        height: 559
+      },
+      assetIds: {
+        responseId: 'r_hint123',
+        draftId: 'rc_hint123',
+        conversationId: 'c_hint123'
+      }
+    }, {
+      now: 2000
+    });
+
+    assert.equal(applied, true);
+    assert.equal(image.dataset.gwrSourceUrl, undefined);
+    assert.equal(image.dataset.gwrResponseId, 'r_hint123');
+    assert.equal(image.dataset.gwrDraftId, 'rc_hint123');
+    assert.equal(image.dataset.gwrConversationId, 'c_hint123');
+  });
+});
+
 test('createPageImageReplacementController should reuse clicked preview source for a fullscreen blob image without asset ids', async () => {
   await withPageImageTestEnv(async ({ MockHTMLImageElement }) => {
     const listeners = new Map();
@@ -1518,6 +1590,116 @@ test('createPageImageReplacementController should reuse clicked preview source f
 
     assert.deepEqual(seenSources, ['https://lh3.googleusercontent.com/gg/example-token=s1024-rj']);
     assert.equal(fullscreenImage.dataset.gwrSourceUrl, 'https://lh3.googleusercontent.com/gg/example-token=s1024-rj');
+    controller.dispose();
+  });
+});
+
+test('createPageImageReplacementController should reuse remembered original asset urls for fullscreen blob images when clicked preview only exposes asset ids', async () => {
+  await withPageImageTestEnv(async ({ MockHTMLImageElement }) => {
+    const listeners = new Map();
+    const targetDocument = {
+      readyState: 'complete',
+      body: {},
+      documentElement: {},
+      querySelectorAll() {
+        return [];
+      },
+      addEventListener(type, listener) {
+        listeners.set(type, listener);
+      },
+      removeEventListener(type) {
+        listeners.delete(type);
+      }
+    };
+    globalThis.MutationObserver = class {
+      observe() {}
+      disconnect() {}
+    };
+
+    bindOriginalAssetUrlToImages({
+      root: {
+        querySelectorAll() {
+          return [];
+        }
+      },
+      assetIds: {
+        responseId: 'r_hint123',
+        draftId: 'rc_hint123',
+        conversationId: 'c_hint123'
+      },
+      sourceUrl: 'https://lh3.googleusercontent.com/gg/example-token=s0-rj'
+    });
+
+    const previewImage = new MockHTMLImageElement();
+    previewImage.dataset = {
+      gwrResponseId: 'r_hint123',
+      gwrDraftId: 'rc_hint123',
+      gwrConversationId: 'c_hint123'
+    };
+    previewImage.src = 'blob:https://gemini.google.com/runtime-preview';
+    previewImage.currentSrc = previewImage.src;
+    previewImage.naturalWidth = 1024;
+    previewImage.naturalHeight = 559;
+    previewImage.clientWidth = 512;
+    previewImage.clientHeight = 280;
+    previewImage.closest = (selector) => selector === 'generated-image,.generated-image-container'
+      ? previewContainer
+      : null;
+
+    const previewContainer = {
+      querySelector(selector) {
+        return selector === 'img' ? previewImage : null;
+      }
+    };
+
+    const fullscreenImage = new MockHTMLImageElement();
+    fullscreenImage.dataset = {};
+    fullscreenImage.src = 'blob:https://gemini.google.com/fullscreen-cached';
+    fullscreenImage.currentSrc = fullscreenImage.src;
+    fullscreenImage.naturalWidth = 1024;
+    fullscreenImage.naturalHeight = 559;
+    fullscreenImage.clientWidth = 951;
+    fullscreenImage.clientHeight = 519;
+    fullscreenImage.style = {};
+    fullscreenImage.closest = (selector) => selector === 'generated-image,.generated-image-container'
+      ? {}
+      : null;
+
+    const seenSources = [];
+    const controller = createPageImageReplacementController({
+      logger: createSilentLogger(),
+      targetDocument,
+      processPageImageSourceImpl: async ({ sourceUrl }) => {
+        seenSources.push(sourceUrl);
+        return {
+          skipped: true,
+          reason: 'test-stop'
+        };
+      }
+    });
+
+    controller.install();
+    listeners.get('pointerdown')?.({
+      target: {
+        closest(selector) {
+          return selector === 'generated-image,.generated-image-container'
+            ? previewContainer
+            : null;
+        }
+      }
+    });
+
+    controller.processRoot({
+      querySelectorAll() {
+        return [fullscreenImage];
+      }
+    });
+
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.deepEqual(seenSources, ['https://lh3.googleusercontent.com/gg/example-token=s0-rj']);
+    assert.equal(fullscreenImage.dataset.gwrSourceUrl, 'https://lh3.googleusercontent.com/gg/example-token=s0-rj');
+    assert.equal(fullscreenImage.dataset.gwrDraftId, 'rc_hint123');
     controller.dispose();
   });
 });

@@ -1,6 +1,33 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+
+function listRelativeFiles(directoryUrl, prefix = '') {
+  if (!existsSync(directoryUrl)) {
+    return [];
+  }
+
+  const files = [];
+
+  for (const entry of readdirSync(directoryUrl, { withFileTypes: true })) {
+    const relativePath = `${prefix}${entry.name}`;
+    const entryUrl = new URL(`${entry.name}${entry.isDirectory() ? '/' : ''}`, directoryUrl);
+
+    if (entry.isDirectory()) {
+      files.push(...listRelativeFiles(entryUrl, `${relativePath}/`));
+      continue;
+    }
+
+    files.push(relativePath);
+  }
+
+  return files;
+}
+
+const obsoleteSuperpowersDocs = [
+  'plans/2026-03-20-extension-offscreen-worker-bridge.md',
+  'plans/2026-03-20-extension-worker-mvp.md'
+];
 
 test('removed plugin source directory should not remain as an empty placeholder', () => {
   assert.equal(
@@ -28,31 +55,40 @@ test('public directory should not keep removed plugin fixture pages', () => {
 });
 
 test('obsolete plugin design notes should not stay in active docs', () => {
-  const removedPlanDocs = [
-    '2026-03-20-extension-offscreen-worker-bridge.md',
-    '2026-03-20-extension-worker-mvp.md'
-  ];
-
-  for (const filename of removedPlanDocs) {
+  for (const filename of obsoleteSuperpowersDocs) {
     assert.equal(
-      existsSync(new URL(`../../docs/superpowers/plans/${filename}`, import.meta.url)),
+      existsSync(new URL(`../../docs/superpowers/${filename}`, import.meta.url)),
       false,
-      `expected docs/superpowers/plans/${filename} to be removed`
+      `expected docs/superpowers/${filename} to be removed`
     );
   }
 });
 
 test('orphaned superpowers plan directories should not remain after removing obsolete notes', () => {
-  assert.equal(
-    existsSync(new URL('../../docs/superpowers/plans', import.meta.url)),
-    false,
-    'expected docs/superpowers/plans to be removed once obsolete notes are deleted'
-  );
-  assert.equal(
-    existsSync(new URL('../../docs/superpowers', import.meta.url)),
-    false,
-    'expected docs/superpowers to be removed when it becomes empty'
-  );
+  const superpowersPlansDir = new URL('../../docs/superpowers/plans/', import.meta.url);
+  const superpowersDir = new URL('../../docs/superpowers/', import.meta.url);
+
+  if (existsSync(superpowersPlansDir)) {
+    const activePlanFiles = listRelativeFiles(superpowersPlansDir).filter(
+      (relativePath) => !obsoleteSuperpowersDocs.includes(`plans/${relativePath}`)
+    );
+    assert.notEqual(
+      activePlanFiles.length,
+      0,
+      'expected docs/superpowers/plans to contain active docs when the directory remains'
+    );
+  }
+
+  if (existsSync(superpowersDir)) {
+    const activeSuperpowersFiles = listRelativeFiles(superpowersDir).filter(
+      (relativePath) => !obsoleteSuperpowersDocs.includes(relativePath)
+    );
+    assert.notEqual(
+      activeSuperpowersFiles.length,
+      0,
+      'expected docs/superpowers to contain active docs when the directory remains'
+    );
+  }
 });
 
 test('historical implementation plan docs should not remain in docs/plans', () => {

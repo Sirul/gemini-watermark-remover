@@ -109,6 +109,28 @@ pnpm build
 pnpm serve
 ```
 
+### Tampermonkey Debugging on macOS
+
+For the repo's fixed-profile workflow on macOS:
+
+```bash
+# Build the latest userscript
+pnpm build
+
+# Start a local dist server if needed
+pnpm dev
+
+# Open the fixed Chrome profile with remote debugging enabled
+./scripts/open-fixed-chrome-profile.sh --url https://gemini.google.com/app
+```
+
+Notes:
+
+- the fixed profile lives under `.chrome-debug/tampermonkey-profile`
+- default CDP port is `9226`
+- default proxy is `http://127.0.0.1:7890`; disable it with `--proxy off` if not needed
+- reinstall the latest userscript from `http://127.0.0.1:4173/userscript/gemini-watermark-remover.user.js`
+
 ## SDK Usage
 
 The package root now exposes a small public SDK for third-party integrations:

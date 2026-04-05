@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { createServer } from 'node:http';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { spawn } from 'node:child_process';
@@ -11,6 +11,10 @@ import {
   runTampermonkeyFreshnessCheck,
   shouldFailTampermonkeyFreshnessCheck
 } from './tampermonkey-freshness.js';
+import {
+  buildChromeLaunchSpec,
+  resolveChromeExecutablePath
+} from './chrome-launcher.js';
 
 const ROOT_DIR = process.cwd();
 const PUBLIC_DIR = path.resolve(ROOT_DIR, 'public');
@@ -86,22 +90,6 @@ export function parseTampermonkeySmokeCliArgs(argv = []) {
   }
 
   return parsed;
-}
-
-function resolveChromeExecutablePath(env = process.env) {
-  if (env.GWR_DEBUG_EXECUTABLE_PATH) {
-    return env.GWR_DEBUG_EXECUTABLE_PATH;
-  }
-
-  const candidates = process.platform === 'win32'
-    ? [
-        'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-        'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-        path.join(process.env.LOCALAPPDATA || '', 'Google\\Chrome\\Application\\chrome.exe')
-      ]
-    : [];
-
-  return candidates.find((candidate) => candidate && existsSync(candidate)) || '';
 }
 
 export function buildTampermonkeySmokeChromeArgs({
@@ -280,12 +268,16 @@ async function launchChromeWithProfile({ profileDir, proxyServer, port, targetUr
     throw new Error('未找到可用的 Chrome 可执行文件，请设置 GWR_DEBUG_EXECUTABLE_PATH');
   }
 
-  const chromeProcess = spawn(executablePath, buildTampermonkeySmokeChromeArgs({
-    profileDir,
-    proxyServer,
-    port,
-    targetUrl
-  }), {
+  const launchSpec = buildChromeLaunchSpec({
+    executablePath,
+    chromeArgs: buildTampermonkeySmokeChromeArgs({
+      profileDir,
+      proxyServer,
+      port,
+      targetUrl
+    })
+  });
+  const chromeProcess = spawn(launchSpec.command, launchSpec.args, {
     cwd: ROOT_DIR,
     stdio: 'ignore',
     windowsHide: false

@@ -77,3 +77,13 @@ test('scripts directory should expose a fixed-profile launcher powershell script
   assert.match(source, /tampermonkey-worker-probe\.html/);
   assert.match(source, /--cdp-port/);
 });
+
+test('scripts directory should expose a fixed-profile launcher shell script', () => {
+  const scriptPath = new URL('../../scripts/open-fixed-chrome-profile.sh', import.meta.url);
+  assert.equal(existsSync(scriptPath), true);
+
+  const source = readFileSync(scriptPath, 'utf8');
+  assert.match(source, /open-tampermonkey-profile\.js/);
+  assert.match(source, /tampermonkey-worker-probe\.html/);
+  assert.match(source, /--cdp-port/);
+});

@@ -109,6 +109,28 @@ pnpm build
 pnpm serve
 ```
 
+### macOS 下调试油猴固定 Profile
+
+如果要走仓库内置的固定 profile 调试流，macOS 下建议直接用：
+
+```bash
+# 构建最新 userscript
+pnpm build
+
+# 如有需要，启动本地产物服务
+pnpm dev
+
+# 打开固定 Chrome profile，并直达 Gemini
+./scripts/open-fixed-chrome-profile.sh --url https://gemini.google.com/app
+```
+
+说明：
+
+- 固定 profile 目录是 `.chrome-debug/tampermonkey-profile`
+- 默认 CDP 端口是 `9226`
+- 默认代理是 `http://127.0.0.1:7890`，不需要时可加 `--proxy off`
+- 验证最新构建时，请从 `http://127.0.0.1:4173/userscript/gemini-watermark-remover.user.js` 重新安装 userscript
+
 ## SDK 用法
 
 现在包根已经暴露了一层较稳定的公共 SDK，第三方可直接调用：

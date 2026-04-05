@@ -1,11 +1,14 @@
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 import {
   DEFAULT_TAMPERMONKEY_PROFILE_DIR
 } from './tampermonkey-smoke.js';
+import {
+  buildChromeLaunchSpec,
+  resolveChromeExecutablePath
+} from './chrome-launcher.js';
 
 export const DEFAULT_TAMPERMONKEY_STORE_URL = 'https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo';
 export const DEFAULT_PROXY_SERVER = 'http://127.0.0.1:7890';
@@ -78,22 +81,6 @@ export function buildTampermonkeyProfileLaunchArgs({
   return args;
 }
 
-export function resolveChromeExecutablePath(env = process.env) {
-  if (env.GWR_DEBUG_EXECUTABLE_PATH) {
-    return env.GWR_DEBUG_EXECUTABLE_PATH;
-  }
-
-  const candidates = process.platform === 'win32'
-    ? [
-        'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-        'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-        path.join(process.env.LOCALAPPDATA || '', 'Google\\Chrome\\Application\\chrome.exe')
-      ]
-    : [];
-
-  return candidates.find((candidate) => candidate && existsSync(candidate)) || '';
-}
-
 export function openTampermonkeyProfile(options = {}) {
   const executablePath = resolveChromeExecutablePath(process.env);
   if (!executablePath) {
@@ -101,7 +88,11 @@ export function openTampermonkeyProfile(options = {}) {
   }
 
   const args = buildTampermonkeyProfileLaunchArgs(options);
-  const child = spawn(executablePath, args, {
+  const launchSpec = buildChromeLaunchSpec({
+    executablePath,
+    chromeArgs: args
+  });
+  const child = spawn(launchSpec.command, launchSpec.args, {
     cwd: process.cwd(),
     detached: true,
     stdio: 'ignore',
@@ -110,7 +101,9 @@ export function openTampermonkeyProfile(options = {}) {
   child.unref();
   return {
     executablePath,
-    args
+    args,
+    command: launchSpec.command,
+    launchArgs: launchSpec.args
   };
 }
 

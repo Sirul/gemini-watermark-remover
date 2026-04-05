@@ -9,11 +9,20 @@
 - Default proxy: `http://127.0.0.1:7890`
 - Production userscript artifact: `dist/userscript/gemini-watermark-remover.user.js`
 
+Platform notes:
+
+- macOS launcher uses `/usr/bin/open -na "Google Chrome.app" --args ...`
+- macOS default Chrome app lookup:
+  - `/Applications/Google Chrome.app`
+  - `~/Applications/Google Chrome.app`
+- Override Chrome location on any platform with `GWR_DEBUG_EXECUTABLE_PATH`
+
 ### Open the Fixed Profile
 
+- Shell launcher: `./scripts/open-fixed-chrome-profile.sh`
+- Node launcher: `node scripts/open-tampermonkey-profile.js --cdp-port 9226`
 - CMD launcher: `.\scripts\open-fixed-chrome-profile.cmd`
 - PowerShell launcher: `.\scripts\open-fixed-chrome-profile.ps1`
-- Node launcher: `node scripts/open-tampermonkey-profile.js --cdp-port 9226`
 
 Default behavior:
 
@@ -21,6 +30,13 @@ Default behavior:
 - Open remote debugging on port `9226`
 - Use the local proxy
 - Open the local probe page by default, or a passed target URL
+
+macOS quick path:
+
+1. Run `pnpm build`
+2. Start the local artifact server, for example `pnpm dev`
+3. Open the fixed profile with `./scripts/open-fixed-chrome-profile.sh --url https://gemini.google.com/app`
+4. If you do not want the repo's default proxy, pass `--proxy off`
 
 ### One-Time Manual Setup
 
@@ -37,7 +53,7 @@ Do this only once in the fixed profile:
 ### Local Build and Services
 
 - Production build: `pnpm build`
-- Local dist server: dev mode or the active local build server for this worktree
+- Local dist server: `pnpm dev`, `pnpm serve`, or the active local build server for this worktree
 - Current confirmed dev server during request-layer debugging: `http://127.0.0.1:4317/`
 - Probe smoke test: `pnpm probe:tm`
 - Installed userscript freshness check: `pnpm probe:tm:freshness`

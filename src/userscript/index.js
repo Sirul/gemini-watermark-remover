@@ -102,6 +102,11 @@ function isPreviewReplacementEnabled(targetWindow) {
         : await processingRuntime.processWatermarkBlob(blob, options);
       return result.processedBlob;
     };
+    const processClipboardImageBlobAtBestPath = (blob, options = {}) => (
+      pageProcessClient?.processWatermarkBlob
+        ? pageProcessClient.processWatermarkBlob(blob, options)
+        : processingRuntime.processWatermarkBlob(blob, options)
+    );
     const removeWatermarkFromBestAvailablePath = (blob, options = {}) => (
       pageProcessClient?.removeWatermarkFromBlob
         ? pageProcessClient.removeWatermarkFromBlob(blob, options)
@@ -188,6 +193,8 @@ function isPreviewReplacementEnabled(targetWindow) {
         processedBlob: payload?.processedBlob || null,
         processedMeta: null,
         processedFrom: 'request-preview',
+        sessionKey,
+        assetIds: resolvedActionContext?.assetIds || null,
         imageSessionStore
       });
     };
@@ -240,6 +247,7 @@ function isPreviewReplacementEnabled(targetWindow) {
       getActionContext: resolvePreviewRequestActionContext,
       processBlob: processPreviewBlobAtBestPath,
       shouldProcessRequest: ({ url = '' } = {}) => isGeminiDisplayPreviewAssetUrl(url),
+      failOpenOnProcessingError: true,
       onProcessedBlobResolved: handlePreviewBlobResolved,
       logger: console
     });
@@ -263,6 +271,9 @@ function isPreviewReplacementEnabled(targetWindow) {
       getActionContext: () => downloadIntentGate.getRecentActionContext(),
       imageSessionStore: imageSessionStore,
       onActionCriticalFailure: handleActionCriticalFailure,
+      processClipboardImageBlob: (blob, { actionContext } = {}) => (
+        processClipboardImageBlobAtBestPath(blob, { actionContext })
+      ),
       resolveImageElement: (actionContext) => actionContextResolver.resolveImageElement(actionContext),
       logger: console
     });

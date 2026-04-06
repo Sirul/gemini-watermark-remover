@@ -39,10 +39,27 @@ const processingOverlayState = new WeakMap();
 const previewOverlayState = new WeakMap();
 const originalAssetUrlRegistry = new Map();
 const previewProcessedResultRegistry = new Map();
+const MAX_REMEMBERED_PREVIEW_RESULT_REGISTRY_SIZE = 32;
 
 export function resetPageImageReplacementRegistriesForTests() {
   originalAssetUrlRegistry.clear();
   previewProcessedResultRegistry.clear();
+}
+
+export function getRememberedPreviewResultRegistrySizeForTests() {
+  return previewProcessedResultRegistry.size;
+}
+
+export function getRememberedPreviewResultRegistryEntryForTests(sourceUrl = '') {
+  const normalizedSourceUrl = typeof sourceUrl === 'string'
+    ? normalizeGoogleusercontentImageUrl(sourceUrl.trim())
+    : '';
+  if (!normalizedSourceUrl) {
+    return null;
+  }
+
+  const entry = previewProcessedResultRegistry.get(normalizedSourceUrl) || null;
+  return entry ? { ...entry } : null;
 }
 
 function appendLog(onLog, type, payload = {}) {
@@ -341,36 +358,73 @@ function resolveRememberedOriginalAssetUrl(assetIds = null) {
   return '';
 }
 
-function rememberProcessedPreviewResult(sourceUrl = '', payload = {}) {
+function trimRememberedPreviewResultRegistry() {
+  while (previewProcessedResultRegistry.size > MAX_REMEMBERED_PREVIEW_RESULT_REGISTRY_SIZE) {
+    const oldestKey = previewProcessedResultRegistry.keys().next().value;
+    if (typeof oldestKey !== 'string' || !oldestKey) {
+      break;
+    }
+    previewProcessedResultRegistry.delete(oldestKey);
+  }
+}
+
+function rememberProcessedPreviewResult(sourceUrl = '', payload = {}, {
+  imageSessionStore = getDefaultImageSessionStore()
+} = {}) {
   const normalizedSourceUrl = typeof sourceUrl === 'string'
     ? normalizeGoogleusercontentImageUrl(sourceUrl.trim())
     : '';
-  const processedBlob = payload?.processedBlob instanceof Blob
-    ? payload.processedBlob
-    : null;
-  if (!normalizedSourceUrl || !processedBlob) {
+  const sessionKey = typeof payload?.sessionKey === 'string' && payload.sessionKey.trim()
+    ? payload.sessionKey.trim()
+    : (imageSessionStore?.getOrCreateByAssetIds?.(payload?.assetIds) || '');
+  if (!normalizedSourceUrl || !sessionKey) {
     return '';
   }
 
+  previewProcessedResultRegistry.delete(normalizedSourceUrl);
   previewProcessedResultRegistry.set(normalizedSourceUrl, {
     sourceUrl: normalizedSourceUrl,
-    processedBlob,
+    sessionKey,
     processedMeta: payload?.processedMeta ?? null,
     processedFrom: typeof payload?.processedFrom === 'string' && payload.processedFrom.trim()
       ? payload.processedFrom.trim()
       : 'request-preview'
   });
+  trimRememberedPreviewResultRegistry();
   return normalizedSourceUrl;
 }
 
-function resolveRememberedProcessedPreviewResult(sourceUrl = '') {
+function resolveRememberedProcessedPreviewResult(sourceUrl = '', {
+  imageSessionStore = getDefaultImageSessionStore()
+} = {}) {
   const normalizedSourceUrl = typeof sourceUrl === 'string'
     ? normalizeGoogleusercontentImageUrl(sourceUrl.trim())
     : '';
   if (!normalizedSourceUrl) {
     return null;
   }
-  return previewProcessedResultRegistry.get(normalizedSourceUrl) || null;
+
+  const rememberedEntry = previewProcessedResultRegistry.get(normalizedSourceUrl) || null;
+  if (!rememberedEntry?.sessionKey) {
+    return null;
+  }
+
+  const rememberedResource = imageSessionStore?.getBestResource?.(rememberedEntry.sessionKey, 'display') || null;
+  if (
+    rememberedResource?.kind !== 'processed'
+    || rememberedResource.slot !== 'preview'
+    || !(rememberedResource.blob instanceof Blob)
+  ) {
+    return null;
+  }
+
+  return {
+    sourceUrl: normalizedSourceUrl,
+    sessionKey: rememberedEntry.sessionKey,
+    processedBlob: rememberedResource.blob,
+    processedMeta: rememberedResource.processedMeta ?? rememberedEntry.processedMeta ?? null,
+    processedFrom: rememberedResource.source || rememberedEntry.processedFrom || 'request-preview'
+  };
 }
 
 function createPreviewCandidateProcessor(processWatermarkBlobImpl, processingOptions = null) {
@@ -1891,7 +1945,9 @@ export function bindOriginalAssetUrlToImages({
 
     const dataset = imageElement.dataset || (imageElement.dataset = {});
     if (dataset.gwrSourceUrl === normalizedSourceUrl) {
-      const rememberedPreviewResult = resolveRememberedProcessedPreviewResult(normalizedSourceUrl);
+      const rememberedPreviewResult = resolveRememberedProcessedPreviewResult(normalizedSourceUrl, {
+        imageSessionStore
+      });
       if (rememberedPreviewResult) {
         applyReadyImageState(imageElement, rememberedPreviewResult.processedBlob, {
           imageSessionStore,
@@ -1903,7 +1959,9 @@ export function bindOriginalAssetUrlToImages({
       continue;
     }
     dataset.gwrSourceUrl = normalizedSourceUrl;
-    const rememberedPreviewResult = resolveRememberedProcessedPreviewResult(normalizedSourceUrl);
+    const rememberedPreviewResult = resolveRememberedProcessedPreviewResult(normalizedSourceUrl, {
+      imageSessionStore
+    });
     if (rememberedPreviewResult) {
       applyReadyImageState(imageElement, rememberedPreviewResult.processedBlob, {
         imageSessionStore,
@@ -1924,18 +1982,19 @@ export function bindProcessedPreviewResultToImages({
   processedBlob = null,
   processedMeta = null,
   processedFrom = 'request-preview',
+  sessionKey = '',
+  assetIds = null,
   imageSessionStore = getDefaultImageSessionStore()
 } = {}) {
-  const normalizedSourceUrl = rememberProcessedPreviewResult(sourceUrl, {
-    processedBlob,
-    processedMeta,
-    processedFrom
-  });
+  const normalizedSourceUrl = typeof sourceUrl === 'string'
+    ? normalizeGoogleusercontentImageUrl(sourceUrl.trim())
+    : '';
   if (!root || !normalizedSourceUrl || !(processedBlob instanceof Blob)) {
     return 0;
   }
 
   let updatedCount = 0;
+  let rememberedSessionKey = typeof sessionKey === 'string' ? sessionKey.trim() : '';
   for (const imageElement of collectBindableImages(root)) {
     const candidateSourceUrl = normalizeGoogleusercontentImageUrl(resolveCandidateImageUrl(imageElement) || '');
     if (candidateSourceUrl !== normalizedSourceUrl) {
@@ -1949,8 +2008,21 @@ export function bindProcessedPreviewResultToImages({
       processedFrom,
       processedSlot: 'preview'
     });
+    if (!rememberedSessionKey) {
+      const rememberedAssetIds = readAssetIdsFromImageDataset(imageElement) || extractGeminiImageAssetIds(imageElement);
+      rememberedSessionKey = imageSessionStore.getOrCreateByAssetIds?.(rememberedAssetIds) || '';
+    }
     updatedCount += 1;
   }
+
+  rememberProcessedPreviewResult(normalizedSourceUrl, {
+    sessionKey: rememberedSessionKey,
+    assetIds,
+    processedMeta,
+    processedFrom
+  }, {
+    imageSessionStore
+  });
 
   return updatedCount;
 }
@@ -2013,7 +2085,9 @@ export function createPageImageReplacementController({
       : '';
     const candidateUrls = [datasetSourceUrl, stableSourceUrl, currentSourceUrl].filter(Boolean);
     for (const candidateUrl of candidateUrls) {
-      const rememberedPreviewResult = resolveRememberedProcessedPreviewResult(candidateUrl);
+      const rememberedPreviewResult = resolveRememberedProcessedPreviewResult(candidateUrl, {
+        imageSessionStore
+      });
       if (!rememberedPreviewResult) {
         continue;
       }

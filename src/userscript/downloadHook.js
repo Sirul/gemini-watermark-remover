@@ -1397,6 +1397,7 @@ export function createGeminiDownloadFetchHook({
   onProcessedBlobResolved = null,
   onActionCriticalFailure = null,
   shouldProcessRequest = () => true,
+  failOpenOnProcessingError = false,
   logger = console,
   cache = new Map()
 }) {
@@ -1450,6 +1451,9 @@ export function createGeminiDownloadFetchHook({
     if (!isImageResponse(response)) {
       return response;
     }
+    const fallbackResponse = failOpenOnProcessingError && typeof response.clone === 'function'
+      ? response.clone()
+      : null;
 
     try {
       let pendingBlob = cache.get(normalizedUrl);
@@ -1495,6 +1499,9 @@ export function createGeminiDownloadFetchHook({
       return buildProcessedResponse(response, processedBlob);
     } catch (error) {
       logger?.warn?.('[Gemini Watermark Remover] Download hook processing failed:', error);
+      if (failOpenOnProcessingError && fallbackResponse) {
+        return fallbackResponse;
+      }
       await notifyActionCriticalFailure(onActionCriticalFailure, appendCompatibleActionContext({
         error,
         url,

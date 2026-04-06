@@ -21,6 +21,8 @@ import {
   processPreviewPageImageSource,
   applyPageImageProcessingResult,
   fetchBlobFromBackground,
+  getRememberedPreviewResultRegistryEntryForTests,
+  getRememberedPreviewResultRegistrySizeForTests,
   hideProcessingOverlay,
   intersectCaptureRectWithViewport,
   resolvePreviewReplacementResult,
@@ -1776,6 +1778,112 @@ test('bindProcessedPreviewResultToImages should apply a remembered request-layer
     const snapshot = imageSessionStore.getSnapshot('draft:rc_preview_apply');
     assert.equal(snapshot?.derived?.processedSlots?.preview?.processedFrom, 'request-preview');
     assert.equal(snapshot?.derived?.processedSlots?.preview?.blobType, 'image/png');
+  });
+});
+
+test('bindProcessedPreviewResultToImages should remember preview results by session key instead of caching raw blob payloads', async () => {
+  await withPageImageTestEnv(async ({ MockHTMLImageElement }) => {
+    const imageSessionStore = createImageSessionStore();
+    const image = new MockHTMLImageElement();
+    image.dataset = {
+      gwrSourceUrl: 'https://lh3.googleusercontent.com/gg-dl/example-preview-registry=s0-rj?alr=yes',
+      gwrResponseId: 'r_preview_registry',
+      gwrDraftId: 'rc_preview_registry',
+      gwrConversationId: 'c_preview_registry'
+    };
+    image.style = {};
+    image.src = image.dataset.gwrSourceUrl;
+    image.currentSrc = image.src;
+    image.naturalWidth = 1024;
+    image.naturalHeight = 559;
+    image.width = 1024;
+    image.height = 559;
+    image.clientWidth = 456;
+    image.clientHeight = 249;
+    image.parentElement = createMockElement('div');
+    image.closest = (selector) => (
+      selector === 'generated-image,.generated-image-container'
+        ? image.parentElement
+        : null
+    );
+
+    const processedBlob = new Blob(['processed-preview'], { type: 'image/png' });
+    bindProcessedPreviewResultToImages({
+      root: {
+        querySelectorAll() {
+          return [image];
+        }
+      },
+      sourceUrl: 'https://lh3.googleusercontent.com/gg-dl/example-preview-registry=s1024-rj?alr=yes',
+      processedBlob,
+      processedFrom: 'request-preview',
+      imageSessionStore
+    });
+
+    const rememberedEntry = getRememberedPreviewResultRegistryEntryForTests(
+      'https://lh3.googleusercontent.com/gg-dl/example-preview-registry=s1024-rj?alr=yes'
+    );
+    assert.equal(rememberedEntry?.sessionKey, 'draft:rc_preview_registry');
+    assert.equal(rememberedEntry?.processedFrom, 'request-preview');
+    assert.equal('processedBlob' in (rememberedEntry || {}), false);
+  });
+});
+
+test('bindProcessedPreviewResultToImages should evict the oldest remembered preview results once the registry cap is exceeded', async () => {
+  await withPageImageTestEnv(async ({ MockHTMLImageElement }) => {
+    const imageSessionStore = createImageSessionStore();
+    const processedBlob = new Blob(['processed-preview'], { type: 'image/png' });
+
+    for (let index = 0; index < 40; index += 1) {
+      const image = new MockHTMLImageElement();
+      image.dataset = {
+        gwrSourceUrl: `https://lh3.googleusercontent.com/gg-dl/example-preview-${index}=s0-rj?alr=yes`,
+        gwrResponseId: `r_preview_registry_${index}`,
+        gwrDraftId: `rc_preview_registry_${index}`,
+        gwrConversationId: `c_preview_registry_${index}`
+      };
+      image.style = {};
+      image.src = image.dataset.gwrSourceUrl;
+      image.currentSrc = image.src;
+      image.naturalWidth = 1024;
+      image.naturalHeight = 559;
+      image.width = 1024;
+      image.height = 559;
+      image.clientWidth = 456;
+      image.clientHeight = 249;
+      image.parentElement = createMockElement('div');
+      image.closest = (selector) => (
+        selector === 'generated-image,.generated-image-container'
+          ? image.parentElement
+          : null
+      );
+
+      bindProcessedPreviewResultToImages({
+        root: {
+          querySelectorAll() {
+            return [image];
+          }
+        },
+        sourceUrl: `https://lh3.googleusercontent.com/gg-dl/example-preview-${index}=s1024-rj?alr=yes`,
+        processedBlob,
+        processedFrom: 'request-preview',
+        imageSessionStore
+      });
+    }
+
+    assert.equal(getRememberedPreviewResultRegistrySizeForTests(), 32);
+    assert.equal(
+      getRememberedPreviewResultRegistryEntryForTests(
+        'https://lh3.googleusercontent.com/gg-dl/example-preview-0=s1024-rj?alr=yes'
+      ),
+      null
+    );
+    assert.equal(
+      getRememberedPreviewResultRegistryEntryForTests(
+        'https://lh3.googleusercontent.com/gg-dl/example-preview-39=s1024-rj?alr=yes'
+      )?.sessionKey,
+      'draft:rc_preview_registry_39'
+    );
   });
 });
 

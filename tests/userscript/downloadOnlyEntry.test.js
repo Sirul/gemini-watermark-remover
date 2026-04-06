@@ -134,6 +134,17 @@ test('userscript entry should preserve the intent target for fullscreen clipboar
   assert.match(clipboardHookCall, /imageSessionStore:\s*imageSessionStore/);
 });
 
+test('userscript entry should process clipboard payload blobs when fullscreen processed object urls are stale', () => {
+  const source = loadModuleSource('../../src/userscript/index.js', import.meta.url);
+  const normalized = normalizeWhitespace(source);
+  const clipboardHookCall = normalizeWhitespace(getCallSource(source, 'installGeminiClipboardImageHook'));
+
+  assert.match(normalized, /const processClipboardImageBlobAtBestPath = \(blob,\s*options = \{\}\) => \(/);
+  assert.match(normalized, /pageProcessClient\?\.processWatermarkBlob/);
+  assert.match(normalized, /processingRuntime\.processWatermarkBlob/);
+  assert.match(clipboardHookCall, /processClipboardImageBlob:\s*\(blob,\s*\{ actionContext \} = \{\}\)\s*=>\s*\(\s*processClipboardImageBlobAtBestPath\(blob,\s*\{ actionContext \}\)\s*\)/);
+});
+
 test('userscript entry should wire the action resolver directly into the intent gate', () => {
   const source = normalizeWhitespace(loadModuleSource('../../src/userscript/downloadHook.js', import.meta.url));
 

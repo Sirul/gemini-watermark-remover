@@ -26,7 +26,8 @@ test('clipboard hook should resolve action context only at the provider boundary
   assert.match(source, /import \{ createActionContextProvider \} from '\.\.\/shared\/actionContextCompat\.js'/);
   assert.match(source, /const resolveActionContextProvider = typeof provideActionContext === 'function' \? provideActionContext : createActionContextProvider\(\{ getActionContext \}\)/);
   assert.match(source, /const actionContext = resolveActionContextProvider\(\)/);
-  assert.match(source, /const processedBlob = await resolveProcessedClipboardBlob\(\{ actionContext,/);
+  assert.match(source, /processedBlob = await resolveProcessedClipboardBlob\(\{ actionContext,/);
+  assert.match(source, /processClipboardImageBlobFallback\(items,\s*\{/);
   assert.doesNotMatch(source, /getIntentMetadata/);
 });
 
@@ -330,6 +331,160 @@ test('installGeminiClipboardImageHook should resolve the processed blob from the
   assert.equal(writtenItems.length, 1);
   assert.deepEqual(writtenItems[0][0].types, ['image/png']);
   assert.equal(await writtenItems[0][0].getType('image/png'), processedBlob);
+
+  dispose();
+});
+
+test('installGeminiClipboardImageHook should reuse the processed fullscreen image blob when Gemini fullscreen copy has no original binding yet', async () => {
+  const writtenItems = [];
+  const processedBlob = new Blob(['processed-from-fullscreen-preview'], { type: 'image/png' });
+  const imageSessionStore = createImageSessionStore({
+    now: () => 123456
+  });
+  const sessionKey = imageSessionStore.getOrCreateByAssetIds({
+    responseId: 'r_clipboard_fullscreen_preview',
+    draftId: 'rc_clipboard_fullscreen_preview',
+    conversationId: 'c_clipboard_fullscreen_preview'
+  });
+  imageSessionStore.updateProcessedResult(sessionKey, {
+    slot: 'preview',
+    objectUrl: 'blob:https://gemini.google.com/fullscreen-preview-processed',
+    blobType: 'image/png',
+    processedFrom: 'request-preview'
+  });
+
+  const clipboard = {
+    async write(items) {
+      writtenItems.push(items);
+    }
+  };
+  const imageElement = {
+    dataset: {
+      gwrResponseId: 'r_clipboard_fullscreen_preview',
+      gwrDraftId: 'rc_clipboard_fullscreen_preview',
+      gwrConversationId: 'c_clipboard_fullscreen_preview',
+      gwrWatermarkObjectUrl: 'blob:https://gemini.google.com/fullscreen-preview-processed'
+    }
+  };
+  const targetWindow = {
+    navigator: { clipboard },
+    ClipboardItem: MockClipboardItem
+  };
+
+  const dispose = installGeminiClipboardImageHook(targetWindow, {
+    imageSessionStore,
+    getActionContext: () => ({
+      action: 'clipboard',
+      sessionKey,
+      assetIds: {
+        draftId: 'rc_clipboard_fullscreen_preview'
+      }
+    }),
+    resolveImageElement: () => imageElement,
+    fetchBlobDirect: async () => {
+      throw new Error('fullscreen processed blob urls should be resolved through image decoding');
+    },
+    resolveBlobViaImageElement: async ({ objectUrl, imageElement: resolvedImageElement }) => {
+      assert.equal(objectUrl, 'blob:https://gemini.google.com/fullscreen-preview-processed');
+      assert.equal(resolvedImageElement, imageElement);
+      return processedBlob;
+    },
+    logger: { warn() {} }
+  });
+
+  await clipboard.write([
+    new MockClipboardItem({
+      'image/jpeg': new Blob(['original'], { type: 'image/jpeg' })
+    })
+  ]);
+
+  assert.equal(writtenItems.length, 1);
+  assert.deepEqual(writtenItems[0][0].types, ['image/png']);
+  assert.equal(await writtenItems[0][0].getType('image/png'), processedBlob);
+
+  dispose();
+});
+
+test('installGeminiClipboardImageHook should process the clipboard image payload when fullscreen processed blob urls are stale', async () => {
+  const writtenItems = [];
+  const originalClipboardBlob = new Blob(['clipboard-original'], { type: 'image/png' });
+  const processedClipboardBlob = new Blob(['clipboard-processed'], { type: 'image/png' });
+  const imageSessionStore = createImageSessionStore({
+    now: () => 123456
+  });
+  const sessionKey = imageSessionStore.getOrCreateByAssetIds({
+    responseId: 'r_clipboard_stale_blob',
+    draftId: 'rc_clipboard_stale_blob',
+    conversationId: 'c_clipboard_stale_blob'
+  });
+  imageSessionStore.updateProcessedResult(sessionKey, {
+    slot: 'preview',
+    objectUrl: 'blob:https://gemini.google.com/stale-fullscreen-preview',
+    blobType: 'image/png',
+    processedFrom: 'request-preview'
+  });
+
+  const clipboard = {
+    async write(items) {
+      writtenItems.push(items);
+    }
+  };
+  const imageElement = {
+    dataset: {
+      gwrResponseId: 'r_clipboard_stale_blob',
+      gwrDraftId: 'rc_clipboard_stale_blob',
+      gwrConversationId: 'c_clipboard_stale_blob',
+      gwrWatermarkObjectUrl: 'blob:https://gemini.google.com/stale-fullscreen-preview'
+    }
+  };
+  const targetWindow = {
+    navigator: { clipboard },
+    ClipboardItem: MockClipboardItem
+  };
+
+  let seenActionContext = null;
+  const dispose = installGeminiClipboardImageHook(targetWindow, {
+    imageSessionStore,
+    getActionContext: () => ({
+      action: 'clipboard',
+      sessionKey,
+      assetIds: {
+        draftId: 'rc_clipboard_stale_blob'
+      }
+    }),
+    resolveImageElement: () => imageElement,
+    fetchBlobDirect: async () => {
+      throw new Error('stale blob urls should not be fetched through Fetch API');
+    },
+    resolveBlobViaImageElement: async () => {
+      throw new Error('Failed to load processed object URL');
+    },
+    processClipboardImageBlob: async (blob, { actionContext }) => {
+      seenActionContext = actionContext;
+      assert.equal(await blob.text(), 'clipboard-original');
+      return {
+        processedBlob: processedClipboardBlob
+      };
+    },
+    logger: { warn() {} }
+  });
+
+  await clipboard.write([
+    new MockClipboardItem({
+      'image/png': originalClipboardBlob
+    })
+  ]);
+
+  assert.equal(writtenItems.length, 1);
+  assert.deepEqual(writtenItems[0][0].types, ['image/png']);
+  assert.equal(await writtenItems[0][0].getType('image/png'), processedClipboardBlob);
+  assert.deepEqual(seenActionContext, {
+    action: 'clipboard',
+    sessionKey,
+    assetIds: {
+      draftId: 'rc_clipboard_stale_blob'
+    }
+  });
 
   dispose();
 });

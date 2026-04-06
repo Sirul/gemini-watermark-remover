@@ -16,6 +16,23 @@ function hasClipboardImageItems(items) {
   ));
 }
 
+async function getFirstClipboardImageBlob(items) {
+  for (const item of Array.from(items || [])) {
+    const types = Array.isArray(item?.types) ? item.types.filter(isImageMimeType) : [];
+    for (const type of types) {
+      if (typeof item?.getType !== 'function') {
+        continue;
+      }
+      const blob = await item.getType(type);
+      if (blob instanceof Blob) {
+        return blob;
+      }
+    }
+  }
+
+  return null;
+}
+
 function isGeminiClipboardActionContext(actionContext) {
   if (!actionContext || typeof actionContext !== 'object') {
     return false;
@@ -130,6 +147,29 @@ async function buildClipboardReplacementItems(items, replacementBlob, ClipboardI
   return replacedAny ? replacementItems : items;
 }
 
+async function processClipboardImageBlobFallback(items, {
+  processClipboardImageBlob = null,
+  actionContext = null
+} = {}) {
+  if (typeof processClipboardImageBlob !== 'function') {
+    return null;
+  }
+
+  const sourceBlob = await getFirstClipboardImageBlob(items);
+  if (!(sourceBlob instanceof Blob)) {
+    return null;
+  }
+
+  const result = await processClipboardImageBlob(sourceBlob, {
+    actionContext,
+    items
+  });
+  if (result instanceof Blob) {
+    return result;
+  }
+  return result?.processedBlob instanceof Blob ? result.processedBlob : null;
+}
+
 async function resolveProcessedClipboardBlob({
   actionContext = null,
   resolveImageElement,
@@ -156,7 +196,19 @@ async function resolveProcessedClipboardBlob({
   const processedResource = sessionContext?.resource?.kind === 'processed'
     ? sessionContext.resource
     : null;
-  if (requireFullProcessedResource && !processedResource) {
+  const processedImageElementObjectUrl = typeof imageElement?.dataset?.gwrWatermarkObjectUrl === 'string'
+    ? imageElement.dataset.gwrWatermarkObjectUrl.trim()
+    : '';
+  const canReuseProcessedImageElementFallback = Boolean(
+    processedImageElementObjectUrl
+      && (
+        !requireFullProcessedResource
+        || !sessionContext?.resource
+        || sessionContext.resource.kind === 'preview'
+        || sessionContext.resource.kind === 'blob'
+      )
+  );
+  if (requireFullProcessedResource && !processedResource && !canReuseProcessedImageElementFallback) {
     return null;
   }
 
@@ -165,9 +217,8 @@ async function resolveProcessedClipboardBlob({
     ? sessionContext.resource.url.trim()
     : '';
   const objectUrl = resourceUrl || (
-    !requireFullProcessedResource
-    && typeof imageElement?.dataset?.gwrWatermarkObjectUrl === 'string'
-      ? imageElement.dataset.gwrWatermarkObjectUrl.trim()
+    canReuseProcessedImageElementFallback
+      ? processedImageElementObjectUrl
       : ''
   );
   if (!objectUrl) {
@@ -181,9 +232,10 @@ async function resolveProcessedClipboardBlob({
         imageElement
       });
     } catch (error) {
-      if (typeof fetchBlobDirect !== 'function') {
-        throw error;
+      if (!requireFullProcessedResource && typeof fetchBlobDirect === 'function') {
+        return fetchBlobDirect(objectUrl);
       }
+      throw error;
     }
   }
 
@@ -200,6 +252,7 @@ export function installGeminiClipboardImageHook(targetWindow, {
   resolveImageElement = null,
   imageSessionStore = getDefaultImageSessionStore(),
   onActionCriticalFailure = null,
+  processClipboardImageBlob = null,
   fetchBlobDirect = async (url) => {
     const response = await fetch(url);
     return response.blob();
@@ -225,23 +278,35 @@ export function installGeminiClipboardImageHook(targetWindow, {
     const containsImageItems = hasClipboardImageItems(items);
     const requiresOriginalGeminiBlob = containsImageItems
       && isGeminiClipboardActionContext(actionContext);
+    let clipboardResolutionError = null;
 
     try {
       if (!containsImageItems) {
         return originalWrite(items);
       }
 
-      const processedBlob = await resolveProcessedClipboardBlob({
-        actionContext,
-        resolveImageElement,
-        imageSessionStore,
-        fetchBlobDirect,
-        resolveBlobViaImageElement,
-        requireFullProcessedResource: requiresOriginalGeminiBlob
-      });
+      let processedBlob = null;
+      try {
+        processedBlob = await resolveProcessedClipboardBlob({
+          actionContext,
+          resolveImageElement,
+          imageSessionStore,
+          fetchBlobDirect,
+          resolveBlobViaImageElement,
+          requireFullProcessedResource: requiresOriginalGeminiBlob
+        });
+      } catch (error) {
+        clipboardResolutionError = error;
+      }
+      if (!processedBlob && requiresOriginalGeminiBlob && clipboardResolutionError) {
+        processedBlob = await processClipboardImageBlobFallback(items, {
+          processClipboardImageBlob,
+          actionContext
+        });
+      }
       if (!processedBlob) {
         if (requiresOriginalGeminiBlob) {
-          throw new Error('Original image is unavailable for clipboard processing');
+          throw clipboardResolutionError || new Error('Original image is unavailable for clipboard processing');
         }
         return originalWrite(items);
       }

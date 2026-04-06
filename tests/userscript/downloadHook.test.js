@@ -179,6 +179,38 @@ test('createGeminiDownloadFetchHook should reject the request when processing fa
   );
 });
 
+test('createGeminiDownloadFetchHook should fail open when processing fails and failOpenOnProcessingError is enabled', async () => {
+  let notifiedFailure = false;
+  const originalFetch = async () => new Response(new Blob(['preview-original'], { type: 'image/webp' }), {
+    status: 200,
+    headers: {
+      'content-type': 'image/webp',
+      'x-source': 'origin'
+    }
+  });
+
+  const hook = createGeminiDownloadFetchHook({
+    originalFetch,
+    isTargetUrl: () => true,
+    normalizeUrl: () => 'https://lh3.googleusercontent.com/gg/token=s0-rj',
+    failOpenOnProcessingError: true,
+    onActionCriticalFailure: async () => {
+      notifiedFailure = true;
+    },
+    logger: { warn() {} },
+    processBlob: async () => {
+      throw new Error('preview-boom');
+    }
+  });
+
+  const response = await hook('https://lh3.googleusercontent.com/gg/token=s1024-rj');
+
+  assert.equal(await response.text(), 'preview-original');
+  assert.equal(response.headers.get('content-type'), 'image/webp');
+  assert.equal(response.headers.get('x-source'), 'origin');
+  assert.equal(notifiedFailure, false);
+});
+
 test('createGeminiDownloadFetchHook should notify action-critical failures before rejecting', async () => {
   const originalFetch = async () => new Response(new Blob(['original'], { type: 'image/png' }), {
     status: 200,

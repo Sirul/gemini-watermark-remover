@@ -248,6 +248,35 @@ test('pickBetterCandidate should preserve a clean default anchor when a local sh
     assert.equal(selected, defaultAnchorCandidate);
 });
 
+test('pickBetterCandidate should preserve a strong default anchor against weak size-jitter evidence', () => {
+    const defaultAnchorCandidate = {
+        accepted: true,
+        source: 'standard+validated',
+        provenance: null,
+        validationCost: 0.312,
+        improvement: 0.61,
+        originalSpatialScore: 0.41,
+        originalGradientScore: 0.58,
+        processedSpatialScore: -0.21,
+        processedGradientScore: 0.018
+    };
+    const weakSizeJitterCandidate = {
+        accepted: true,
+        source: 'standard+size+validated',
+        provenance: { sizeJitter: true },
+        validationCost: 0.09,
+        improvement: 0.19,
+        originalSpatialScore: 0.16,
+        originalGradientScore: 0.06,
+        processedSpatialScore: -0.02,
+        processedGradientScore: 0.071
+    };
+
+    const selected = pickBetterCandidate(defaultAnchorCandidate, weakSizeJitterCandidate, 0.002);
+
+    assert.equal(selected, defaultAnchorCandidate);
+});
+
 test('assessReferenceTextureAlignment should mark a candidate unsafe when it is both darker and flatter than the local reference', () => {
     const width = 96;
     const height = 96;

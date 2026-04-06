@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.10 - 2026-04-07
+
+### Userscript
+
+- Let preview request interception fail open for passive preview fetches so Gemini can keep rendering the original page image when request-layer preview processing fails.
+- Hardened fullscreen Gemini copy so stale processed object URLs no longer fall back to CSP-blocked `fetch(blob:...)`; the clipboard hook now reprocesses Gemini's own clipboard image payload when needed.
+- Stabilized fullscreen preview replacement by reusing session-stored preview source bindings for blob-backed dialog images and prioritizing fullscreen images ahead of queued preview work.
+
+### Quality
+
+- Added regression coverage for stale fullscreen clipboard object URLs, fullscreen preview source reuse from the shared image session, and fullscreen-priority page replacement queue behavior.
+- Re-verified the release with a fresh full automated test run, production build, and Tampermonkey userscript freshness check against the fixed profile.
+
 ## 1.0.9 - 2026-03-31
 
 ### Userscript

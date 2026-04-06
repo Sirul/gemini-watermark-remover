@@ -1,5 +1,18 @@
 # 更新日志
 
+## 1.0.10 - 2026-04-07
+
+### 油猴脚本
+
+- 对被动的 preview 请求拦截改为 fail-open：当 request-layer 预览处理失败时，让 Gemini 继续显示原始页面图片，而不是把页面链路卡死。
+- 加固了 Gemini 全屏复制链路：当已处理 object URL 失效时，不再回退到会被 CSP 拦截的 `fetch(blob:...)`，而是改为直接重处理 Gemini 自己写入剪贴板的图片数据。
+- 稳定了全屏预览替换：全屏 dialog 中的 blob 图片会优先复用 session store 里记住的 preview source 绑定，并且在页面替换队列里优先于普通预览图处理。
+
+### 质量
+
+- 补充了 stale fullscreen clipboard object URL、共享 image session 的 fullscreen preview source 复用，以及 fullscreen 优先队列行为的回归测试。
+- 已重新完成一次全量自动化测试、生产构建，以及固定 profile 上的 Tampermonkey userscript freshness 校验。
+
 ## 1.0.9 - 2026-03-31
 
 ### 油猴脚本

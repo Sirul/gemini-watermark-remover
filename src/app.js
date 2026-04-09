@@ -41,6 +41,19 @@ const processedInfo = document.getElementById('processedInfo');
 const downloadBtn = document.getElementById('downloadBtn');
 const copyBtn = document.getElementById('copyBtn');
 const resetBtn = document.getElementById('resetBtn');
+const toastEl = document.getElementById('toast');
+const toastMsgEl = document.getElementById('toastMessage');
+
+function showToast(message) {
+    if (!toastEl || !toastMsgEl) return;
+    toastMsgEl.textContent = message;
+    toastEl.classList.remove('translate-y-20', 'opacity-0');
+    toastEl.classList.add('-translate-y-4', 'opacity-100');
+    setTimeout(() => {
+        toastEl.classList.add('translate-y-20', 'opacity-0');
+        toastEl.classList.remove('-translate-y-4', 'opacity-100');
+    }, 3000);
+}
 
 async function getEngine() {
     if (!enginePromise) {
@@ -105,10 +118,39 @@ async function init() {
             margin: 24,
             scrollOffset: 0,
             background: 'rgba(255, 255, 255, .6)',
-        })
+        });
+
+        checkShareIntent();
     } catch (error) {
         hideLoading();
         console.error('initialize error:', error);
+    }
+}
+
+async function checkShareIntent() {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (!urlParams.has('share')) return;
+
+    try {
+        const cache = await caches.open('share-target');
+        const response = await cache.match('shared-image');
+        if (!response) return;
+
+        const blob = await response.blob();
+        if (!blob) return;
+
+        const file = new File([blob], "shared-image.png", { type: blob.type });
+        
+        // Clean up cache
+        await cache.delete('shared-image');
+        
+        // Process immediately
+        handleFiles([file], { autoCopy: true });
+        
+        // Clean URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+    } catch (err) {
+        console.error('Share intent handling failed:', err);
     }
 }
 
@@ -190,7 +232,7 @@ function handleFileSelect(e) {
     handleFiles(Array.from(e.target.files));
 }
 
-function handleFiles(files) {
+function handleFiles(files, options = {}) {
     setStatusMessage('');
 
     const validFiles = files.filter(file => {
@@ -223,7 +265,7 @@ function handleFiles(files) {
     if (validFiles.length === 1) {
         singlePreview.style.display = 'block';
         multiPreview.style.display = 'none';
-        processSingle(imageQueue[0]);
+        processSingle(imageQueue[0], options);
     } else {
         singlePreview.style.display = 'none';
         multiPreview.style.display = 'block';
@@ -231,12 +273,13 @@ function handleFiles(files) {
         updateProgress();
         multiPreview.scrollIntoView({ behavior: 'smooth', block: 'start' });
         imageQueue.forEach(item => createImageCard(item));
-        processQueue();
+        processQueue(options);
     }
 }
 
 function renderSingleImageMeta(item) {
     if (!item?.originalImg) return;
+    if (!originalInfo) return;
 
     const watermarkInfo = resolveDisplayWatermarkInfo(
         item,
@@ -259,6 +302,7 @@ function getProcessedStatusLabel(item) {
 
 function renderSingleProcessedMeta(item) {
     if (!item?.originalImg) return;
+    if (!processedInfo) return;
 
     const watermarkInfo = resolveDisplayWatermarkInfo(
         item,
@@ -310,7 +354,7 @@ function renderImageCardStatus(item) {
     updateStatus(item.id, html, true);
 }
 
-async function processSingle(item) {
+async function processSingle(item, options = {}) {
     try {
         const img = await loadImage(item.file);
         item.originalImg = img;
@@ -329,7 +373,7 @@ async function processSingle(item) {
         const handle = document.getElementById('sliderHandle');
         overlay.style.display = 'block';
         handle.style.display = 'flex';
-        processedInfo.style.display = 'block';
+        if (processedInfo) processedInfo.style.display = 'block';
 
         copyBtn.style.display = 'flex';
         copyBtn.onclick = () => copyImage(item);
@@ -338,6 +382,11 @@ async function processSingle(item) {
         downloadBtn.onclick = () => downloadImage(item);
 
         renderSingleProcessedMeta(item);
+
+        if (options.autoCopy) {
+            await copyImage(item);
+            showToast(i18n.t('status.copied'));
+        }
 
         document.getElementById('comparisonContainer').scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (error) {
@@ -380,7 +429,7 @@ function createImageCard(item) {
     }
 }
 
-async function processQueue() {
+async function processQueue(options = {}) {
     await Promise.all(imageQueue.map(async item => {
         const img = await loadImage(item.file);
         item.originalImg = img;

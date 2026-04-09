@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.1.0 - 2026-04-09
+
+### PWA & Share Target
+- Transformed the project into a Progressive Web App (PWA).
+- Added Android Share Target support for immediate image processing directly from the share menu.
+- Implemented automatic "One-Click" workflow: share -> process -> copy to clipboard -> toast notification.
+- Streamlined the landing page UI for a minimalist, "straight-to-the-point" experience.
+- Removed Chinese documentation and i18n files.
+
+### Credits
+- Added clear credits to the original algorithm by Allen Kuo and the port by GargantuaX.
+
 ## 1.0.10 - 2026-04-07
 
 ### Userscript

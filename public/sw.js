@@ -1,23 +1,35 @@
-const CACHE_NAME = 'gwr-cache-v1';
+const CACHE_NAME = 'gwr-cache-v2';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './app.js',
   './workers/watermark-worker.js',
   './i18n/en-US.json',
+  './i18n/es-ES.json',
   './i18n/pt-BR.json',
   './icons/icon-192.png',
   './icons/icon-512.png'
 ];
 
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS_TO_CACHE))
   );
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames.map((cacheName) => {
+          if (cacheName !== CACHE_NAME && cacheName !== 'share-target') {
+            return caches.delete(cacheName);
+          }
+        })
+      );
+    }).then(() => self.clients.claim())
+  );
 });
 
 self.addEventListener('fetch', (event) => {

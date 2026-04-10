@@ -1,6 +1,7 @@
 const FALLBACK_LOCALE = 'en-US';
 const LOCALE_SHORT = Object.freeze({
   'en-US': 'EN',
+  'es-ES': 'ES',
   'pt-BR': 'PT',
 });
 const SUPPORTED_LOCALES = Object.freeze(Object.keys(LOCALE_SHORT));
@@ -12,6 +13,7 @@ function toCanonicalLocale(locale) {
   const normalized = locale.toLowerCase();
   if (normalized.startsWith('en')) return 'en-US';
   if (normalized.startsWith('pt')) return 'pt-BR';
+  if (normalized.startsWith('es')) return 'es-ES';
   return null;
 }
 

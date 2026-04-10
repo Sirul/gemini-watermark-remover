@@ -43,11 +43,12 @@
     <div class="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
       <div class="flex items-center gap-2">
         <img src="icons/icon-192.png" class="h-8 w-8" alt="GWR Logo">
-        <h1 class="font-bold text-lg text-primary tracking-tight">GWR <span class="text-gray-400 font-normal">| Gemini</span></h1>
+        <h1 class="font-bold text-lg text-primary tracking-tight">GWR</h1>
       </div>
       <div class="flex items-center gap-4">
         <select id="langSwitch" class="text-xs bg-transparent border-none focus:ring-0 text-gray-500 cursor-pointer">
           <option value="en-US">EN</option>
+          <option value="es-ES">ES</option>
           <option value="pt-BR">PT</option>
         </select>
         <button id="themeToggle" class="p-2 text-gray-500 hover:text-primary transition-colors">
@@ -58,26 +59,14 @@
     </div>
   </header>
 
-  <main class="flex-grow flex flex-col items-center justify-center px-4 py-8">
+  <main class="flex-grow flex flex-col items-center justify-start px-4 py-8">
     <div class="w-full max-w-2xl text-center mb-8">
-      <h2 class="text-4xl font-extrabold text-gray-900 dark:text-white mb-2" data-i18n="main.title">Clean Watermarks</h2>
-      <p class="text-gray-500 dark:text-gray-400" data-i18n="main.subtitle">Local, private, and precise restoration.</p>
+      <h2 class="text-4xl font-extrabold text-gray-900 dark:text-white mb-4" data-i18n="main.title">Gemini AI Watermark Removal</h2>
+      <p class="text-gray-500 dark:text-gray-400 max-w-lg mx-auto" data-i18n="main.subtitle">Based on reverse alpha blending algorithm, pure browser-side processing, Free, Fast, and Lossless</p>
     </div>
 
-    <div class="w-full max-w-2xl bg-white dark:bg-gray-800 rounded-2xl shadow-soft p-3 border border-emerald-50 dark:border-gray-700">
-      <div id="uploadArea" class="group relative flex flex-col items-center justify-center w-full h-72 border-2 border-dashed border-emerald-100 dark:border-gray-600 rounded-xl bg-emerald-50/20 dark:bg-gray-700/20 hover:bg-emerald-50 dark:hover:bg-gray-700/50 hover:border-emerald-400 transition-all cursor-pointer">
-        <div class="flex flex-col items-center justify-center">
-          <div class="w-16 h-16 bg-white dark:bg-gray-700 rounded-full flex items-center justify-center shadow-sm mb-4">
-            <svg class="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
-          </div>
-          <p class="mb-1 text-lg font-semibold text-gray-700 dark:text-gray-200" data-i18n="upload.text">Drop image to clean</p>
-          <p class="text-xs text-gray-400" data-i18n="upload.hint">JPG, PNG, WebP</p>
-        </div>
-        <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" multiple class="hidden" />
-      </div>
-    </div>
-
-    <section id="singlePreview" class="w-full max-w-4xl mt-12 space-y-6" style="display: none;">
+    <!-- Move preview sections ABOVE the upload area -->
+    <section id="singlePreview" class="w-full max-w-4xl mb-8 space-y-6" style="display: none;">
       <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-card overflow-hidden border border-gray-100 dark:border-gray-700">
         <div class="relative w-full overflow-hidden bg-gray-100 dark:bg-gray-900 select-none group flex justify-center">
           <div id="comparisonContainer" class="relative w-fit max-w-full" style="max-height: 60vh;">
@@ -109,18 +98,33 @@
       </div>
     </section>
 
-    <section id="multiPreview" class="w-full max-w-4xl mt-12" style="display: none;">
+    <section id="multiPreview" class="w-full max-w-4xl mb-8" style="display: none;">
       <div class="flex items-center justify-between mb-4">
         <h3 id="progressText" class="font-bold">0/0</h3>
         <button id="downloadAllBtn" class="px-4 py-2 bg-primary text-white rounded-lg text-sm font-bold">Download All</button>
       </div>
       <div id="imageList" class="grid grid-cols-1 gap-4"></div>
     </section>
+
+    <div class="w-full max-w-2xl bg-white dark:bg-gray-800 rounded-2xl shadow-soft p-3 border border-emerald-50 dark:border-gray-700 mt-auto mb-auto">
+      <div id="uploadArea" class="group relative flex flex-col items-center justify-center w-full h-72 border-2 border-dashed border-emerald-100 dark:border-gray-600 rounded-xl bg-emerald-50/20 dark:bg-gray-700/20 hover:bg-emerald-50 dark:hover:bg-gray-700/50 hover:border-emerald-400 transition-all cursor-pointer">
+        <div class="flex flex-col items-center justify-center">
+          <div class="w-16 h-16 bg-white dark:bg-gray-700 rounded-full flex items-center justify-center shadow-sm mb-4">
+            <svg class="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+          </div>
+          <p class="mb-1 text-lg font-semibold text-gray-700 dark:text-gray-200" data-i18n="upload.text">Drop image to clean</p>
+          <p class="text-xs text-gray-400" data-i18n="upload.hint">JPG, PNG, WebP</p>
+        </div>
+        <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" multiple class="hidden" />
+      </div>
+    </div>
+
+    <!-- Previous singlePreview/multiPreview sections were here -->
   </main>
 
   <footer class="py-8 text-center text-gray-400 text-xs">
     <p>&copy; Gemini Watermark Remover. MIT License.</p>
-    <p class="mt-2">Original by Allen Kuo | Port by GargantuaX</p>
+    <p class="mt-2" data-i18n="footer.credits">Original core magic by Allen Kuo | Enhanced & Ported (PWA + Tweaks) by Sirul</p>
   </footer>
 
   <div id="loadingOverlay" class="fixed inset-0 bg-white/60 dark:bg-gray-900/60 backdrop-blur-sm z-[60] hidden flex items-center justify-center">

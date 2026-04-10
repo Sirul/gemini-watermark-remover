@@ -16,9 +16,10 @@ Built with pure JavaScript, this tool uses a mathematically exact **Reverse Alph
 
 ### On Android (PWA)
 1. Install the app by adding it to your Home Screen from your browser.
-2. In Gemini (or any image app), select an image and tap **Share**.
-3. Select **Gemini Watermark Remover** from the share menu.
-4. The app will open, remove the watermark, copy the clean image to your clipboard, and notify you when ready.
+2. Ensure you **download the full-size image** from Gemini (do not directly share or copy the low-resolution preview from the prompt, as the algorithm requires the high-resolution version to work accurately).
+3. From your Gallery or file explorer, tap **Share** on the image.
+4. Select **Gemini Watermark Remover (GWR)** from the share menu.
+5. The app will automatically open, process the image, and **copy the clean image directly to your clipboard**.
 
 ### Desktop Browser
 1. Open the app.
@@ -48,13 +49,11 @@ pnpm serve
 
 ## 📜 Credits & Acknowledgments
 
-This project is a fork and PWA transformation of the original **[Gemini Watermark Remover](https://github.com/GargantuaX/gemini-watermark-remover)** by GargantuaX.
+This version has been enhanced and ported as a PWA by **Sirul**, building upon the original core algorithm and JavaScript port. 
 
-The core algorithm is based on the **[Gemini Watermark Tool](https://github.com/allenk/GeminiWatermarkTool)** by **Allen Kuo (@allenk)**.
-
+The core algorithm is based on the **[Gemini Watermark Tool](https://github.com/allenk/GeminiWatermarkTool)** by **Allen Kuo (@allenk)**. 
 - **Original Algorithm & Calibrated Masks**: © 2024 Allen Kuo (Kwyshell), licensed under MIT.
-- **JavaScript Port**: GargantuaX.
-- **PWA & Share Target Enhancement**: Developed for a streamlined, mobile-first experience.
+- **Initial JavaScript Port**: GargantuaX.
 
 ## 📄 License
 

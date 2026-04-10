@@ -37,7 +37,7 @@
     .medium-zoom-overlay { backdrop-filter: blur(4px); }
   </style>
 </head>
-<body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-100 antialiased flex flex-col min-h-screen loading transition-opacity duration-300">
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-100 antialiased flex flex-col min-h-[100dvh] loading transition-opacity duration-300">
 
   <header class="sticky top-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-100 dark:border-gray-800">
     <div class="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
@@ -69,8 +69,8 @@
     <section id="singlePreview" class="w-full max-w-4xl mb-8 space-y-6" style="display: none;">
       <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-card overflow-hidden border border-gray-100 dark:border-gray-700">
         <div class="relative w-full overflow-hidden bg-gray-100 dark:bg-gray-900 select-none group flex justify-center">
-          <div id="comparisonContainer" class="relative w-fit max-w-full" style="max-height: 60vh;">
-            <img id="originalImage" class="block w-auto h-auto max-w-full max-h-[60vh] object-contain object-right-bottom" draggable="false" />
+          <div id="comparisonContainer" class="relative w-fit max-w-full" style="max-height: 60dvh;">
+            <img id="originalImage" class="block w-auto h-auto max-w-full max-h-[60dvh] object-contain object-right-bottom" draggable="false" />
             <div id="processedOverlay" class="absolute top-0 left-0 h-full w-[50%] overflow-hidden border-r-2 border-white/80 shadow-[0_0_10px_rgba(0,0,0,0.3)] box-content z-10" style="display: none;">
               <img id="processedImage" class="block h-full max-w-none object-contain object-right-bottom" draggable="false" />
             </div>

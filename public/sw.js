@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gwr-cache-v2';
+const CACHE_NAME = 'gwr-cache-v3';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -41,12 +41,12 @@ self.addEventListener('fetch', (event) => {
       (async () => {
         const formData = await event.request.formData();
         const file = formData.get('image');
-        
+
         if (file) {
           const cache = await caches.open('share-target');
           await cache.put('shared-image', new Response(file));
         }
-        
+
         return Response.redirect('./?share=true', 303);
       })()
     );

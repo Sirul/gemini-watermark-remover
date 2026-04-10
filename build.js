@@ -29,29 +29,6 @@ const jsBanner = `/*!
  * Released under the ${pkg.license} License.
  */`;
 
-const userscriptBanner = `// ==UserScript==
-// @name         Gemini NanoBanana Watermark Remover
-// @name:zh-CN   Gemini NanoBanana 图片水印移除
-// @namespace    https://github.com/GargantuaX
-// @version      ${pkg.version}
-// @description  Automatically removes watermarks from Gemini AI generated images
-// @description:zh-CN 自动移除 Gemini AI 生成图像中的水印
-// @icon         https://www.google.com/s2/favicons?domain=gemini.google.com
-// @author       GargantuaX
-// @license      MIT
-// @match        https://gemini.google.com/app
-// @match        https://gemini.google.com/app/*
-// @match        https://gemini.google.com/*
-// @match        https://business.gemini.google/app
-// @match        https://business.gemini.google/app/*
-// @match        https://business.gemini.google/*
-// @connect      googleusercontent.com
-// @grant        unsafeWindow
-// @grant        GM_xmlhttpRequest
-// @run-at       document-start
-// ==/UserScript==
-`;
-
 const copyAssetsPlugin = {
   name: 'copy-assets',
   setup(build) {
@@ -189,63 +166,22 @@ const workerCtx = await esbuild.context({
   sourcemap: !isProd,
 });
 
-// Build inline worker code for userscript (Blob Worker)
-const userscriptWorkerBuild = await esbuild.build({
-  ...commonConfig,
-  entryPoints: ['src/workers/watermarkWorker.js'],
-  format: 'iife',
-  platform: 'browser',
-  target: ['es2020'],
-  write: false,
-  sourcemap: false,
-});
-const userscriptWorkerCode = userscriptWorkerBuild.outputFiles?.[0]?.text || '';
-
-const userscriptPageProcessorBuild = await esbuild.build({
-  ...commonConfig,
-  entryPoints: ['src/page/pageProcessorBootstrap.js'],
-  format: 'iife',
-  platform: 'browser',
-  target: ['es2020'],
-  write: false,
-  sourcemap: false,
-});
-const userscriptPageProcessorCode = userscriptPageProcessorBuild.outputFiles?.[0]?.text || '';
-
-// Build userscript
-const userscriptCtx = await esbuild.context({
-  ...commonConfig,
-  entryPoints: ['src/userscript/index.js'],
-  format: 'iife',
-  outfile: 'dist/userscript/gemini-watermark-remover.user.js',
-  banner: { js: userscriptBanner },
-  minify: false,
-  define: {
-    __US_WORKER_CODE__: JSON.stringify(userscriptWorkerCode),
-    __US_PAGE_PROCESSOR_CODE__: JSON.stringify(userscriptPageProcessorCode),
-    __US_INLINE_WORKER_ENABLED__: 'false'
-  }
-});
-
 console.log(`🚀 Starting build process... [${isProd ? 'PRODUCTION' : 'DEVELOPMENT'}]`);
 
 if (existsSync('dist')) rmSync('dist', { recursive: true });
-mkdirSync('dist/userscript', { recursive: true });
 mkdirSync('dist/workers', { recursive: true });
 
 if (isProd) {
   await Promise.all([
     websiteCtx.rebuild(),
-    workerCtx.rebuild(),
-    userscriptCtx.rebuild()
+    workerCtx.rebuild()
   ]);
   console.log('✅ Build complete!');
   process.exit(0);
 } else {
   await Promise.all([
     websiteCtx.watch(),
-    workerCtx.watch(),
-    userscriptCtx.watch()
+    workerCtx.watch()
   ]);
 
   const watchDir = (dir, dest) => {

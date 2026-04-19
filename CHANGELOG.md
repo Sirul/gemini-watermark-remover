@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.9.0 - 2026-04-19
+
+### Saludo & Health (Stability Fix)
+- Resolved "Error 500" caused by malformed HTML attributes in the auto-submit form.
+- Switched to programmatically building and submitting the login form using JavaScript for maximum robustness.
+- Preserved the Gatekeeper logic to handle recurring visits.
+
 ## 1.8.0 - 2026-04-19
 
 ### Saludo & Health (Gatekeeper Fix)

@@ -26,7 +26,6 @@ export default {
         const jsMatch = setCookie ? setCookie.match(/JSESSIONID=([^;]+)/) : null;
         const jsessionid = jsMatch ? jsMatch[1] : null;
 
-        // Construct the action URL exactly as it was in version 1.6.0
         const actionUrl = jsessionid 
           ? `https://www.sspa.juntadeandalucia.es/servicioandaluzdesalud/clicsalud/pages/anonimo/historia/medicacion/medicacionActiva.jsf;jsessionid=${jsessionid}?opcionSeleccionada=MUMEDICACION`
           : targetUrl;
@@ -54,26 +53,46 @@ export default {
         <p id="status-desc">Preparando acceso seguro.</p>
     </div>
 
-    <form id="autoForm" action="${actionUrl}" method="POST" style="display:none;">
-        <input type="hidden" name="frm-body" value="frm-body">
-        <input type="hidden" name="nameUrl" value="${targetUrl}">
-        <input type="hidden" name="lnkAfirma" value="Certificado digital o DNIe">
-        <input type="hidden" name="javax.faces.ViewState" value="${viewState}">
-    </form>
-
     <script>
-        const TARGET_URL = 'https://www.sspa.juntadeandalucia.es/servicioandaluzdesalud/clicsalud/pages/anonimo/historia/medicacion/medicacionActiva.jsf?opcionSeleccionada=MUMEDICACION';
-        const isForce = window.location.search.includes('force=true');
-        const sessionActive = sessionStorage.getItem('clicsalud_session_active');
+        (function() {
+            const TARGET_URL = ${JSON.stringify(targetUrl)};
+            const ACTION_URL = ${JSON.stringify(actionUrl)};
+            const VIEW_STATE = ${JSON.stringify(viewState)};
+            
+            const isForce = window.location.search.includes('force=true');
+            const sessionActive = sessionStorage.getItem('clicsalud_session_active');
 
-        if (sessionActive && !isForce) {
-            document.getElementById('status-title').innerText = 'Redirigiendo...';
-            window.location.href = TARGET_URL;
-        } else {
-            sessionStorage.setItem('clicsalud_session_active', 'true');
-            // NO DELAY, immediate submit as in 1.6.0
-            document.getElementById('autoForm').submit();
-        }
+            if (sessionActive && !isForce) {
+                document.getElementById('status-title').innerText = 'Redirigiendo...';
+                window.location.href = TARGET_URL;
+            } else {
+                sessionStorage.setItem('clicsalud_session_active', 'true');
+                
+                // Build and submit form via script to prevent HTML attribute corruption
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = ACTION_URL;
+                form.style.display = 'none';
+
+                const fields = {
+                    'frm-body': 'frm-body',
+                    'nameUrl': TARGET_URL,
+                    'lnkAfirma': 'Certificado digital o DNIe',
+                    'javax.faces.ViewState': VIEW_STATE
+                };
+
+                for (const [name, value] of Object.entries(fields)) {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = name;
+                    input.value = value;
+                    form.appendChild(input);
+                }
+
+                document.body.appendChild(form);
+                form.submit();
+            }
+        })();
     </script>
 </body>
 </html>
@@ -93,6 +112,7 @@ export default {
       }
     }
 
+    // Serve static assets from the [assets] configuration
     return env.ASSETS.fetch(request);
   }
 };

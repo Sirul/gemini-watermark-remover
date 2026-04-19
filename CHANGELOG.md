@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.4.0 - 2026-04-19
+
+### Saludo & Health
+- Replicated ClicSalud+ logic into a new backend endpoint at `/salud`.
+- Migrated architecture to Cloudflare Workers with Assets for full dynamic route support.
+
+## 1.3.0 - 2026-04-19
+
+### Brazilian Portuguese Translation
+- Added full Brazilian Portuguese (pt-BR) localization support.
+
 ## 1.1.0 - 2026-04-09
 
 ### PWA & Share Target

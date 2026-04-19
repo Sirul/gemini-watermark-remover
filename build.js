@@ -90,7 +90,7 @@ async function serveStaticDevDist(rootDir = 'dist', defaultPort = 4173) {
   const startPort = Number(process.env.PORT || defaultPort);
   const port = await findAvailablePort(startPort);
 
-  const server = createServer((req, res) => {
+  const server = createServer(async (req, res) => {
     let urlPath = '/';
     try {
       urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
@@ -99,6 +99,59 @@ async function serveStaticDevDist(rootDir = 'dist', defaultPort = 4173) {
       res.end('Bad Request');
       return;
     }
+
+    // --- REPLICATED SALUD LOGIC ---
+    if (urlPath === '/salud' || urlPath === '/salud/') {
+      const targetUrl = 'https://www.sspa.juntadeandalucia.es/servicioandaluzdesalud/clicsalud/pages/anonimo/historia/medicacion/medicacionActiva.jsf';
+      try {
+        const response = await fetch(targetUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0'
+          }
+        });
+        const html = await response.text();
+        const match = html.match(/id="javax.faces.ViewState" value="([^"]+)"/);
+        const viewState = match ? match[1] : '';
+
+        if (!viewState) {
+          res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
+          res.end('Error: No se pudo conectar con el servicio de salud. Reintenta en unos segundos.');
+          return;
+        }
+
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(`
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Cargando Medicación...</title>
+    <style>
+        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f4f4f4; }
+        .loader { text-align: center; }
+    </style>
+</head>
+<body onload="document.getElementById('autoForm').submit();">
+    <div class="loader">
+        <h2>Conectando con ClicSalud+...</h2>
+        <p>Por favor, selecciona tu certificado cuando aparezca la ventana.</p>
+    </div>
+    <form id="autoForm" action="${targetUrl}" method="POST" style="display:none;">
+        <input type="hidden" name="formMedicacion" value="formMedicacion">
+        <input type="hidden" name="lnkAfirma" value="Certificado digital o DNIe">
+        <input type="hidden" name="javax.faces.ViewState" value="${viewState}">
+    </form>
+</body>
+</html>
+        `);
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end('Error interno al conectar con el servicio de salud.');
+      }
+      return;
+    }
+    // ------------------------------
+
     const requestPath = urlPath === '/' ? '/index.html' : urlPath;
     const fsPath = resolve(join(distRoot, normalize(requestPath)));
 

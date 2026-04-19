@@ -102,11 +102,11 @@ async function serveStaticDevDist(rootDir = 'dist', defaultPort = 4173) {
 
     // --- REPLICATED SALUD LOGIC ---
     if (urlPath === '/salud' || urlPath === '/salud/') {
-      const targetUrl = 'https://www.sspa.juntadeandalucia.es/servicioandaluzdesalud/clicsalud/pages/anonimo/historia/medicacion/medicacionActiva.jsf';
+      const targetUrl = 'https://www.sspa.juntadeandalucia.es/servicioandaluzdesalud/clicsalud/pages/anonimo/historia/medicacion/medicacionActiva.jsf?opcionSeleccionada=MUMEDICACION';
       try {
         const response = await fetch(targetUrl, {
           headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36'
           }
         });
         const html = await response.text();
@@ -115,11 +115,15 @@ async function serveStaticDevDist(rootDir = 'dist', defaultPort = 4173) {
 
         if (!viewState) {
           res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
-          res.end('Error: No se pudo conectar con el servicio de salud. Reintenta en unos segundos.');
+          res.end('Error: No se pudo conectar con el servicio de salud (ViewState no encontrado).');
           return;
         }
 
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        const setCookie = response.headers.get('Set-Cookie');
+        const headers = { 'Content-Type': 'text/html; charset=utf-8' };
+        if (setCookie) headers['Set-Cookie'] = setCookie;
+
+        res.writeHead(200, headers);
         res.end(`
 <!DOCTYPE html>
 <html lang="es">
@@ -137,7 +141,8 @@ async function serveStaticDevDist(rootDir = 'dist', defaultPort = 4173) {
         <p>Por favor, selecciona tu certificado cuando aparezca la ventana.</p>
     </div>
     <form id="autoForm" action="${targetUrl}" method="POST" style="display:none;">
-        <input type="hidden" name="formMedicacion" value="formMedicacion">
+        <input type="hidden" name="frm-body" value="frm-body">
+        <input type="hidden" name="nameUrl" value="${targetUrl}">
         <input type="hidden" name="lnkAfirma" value="Certificado digital o DNIe">
         <input type="hidden" name="javax.faces.ViewState" value="${viewState}">
     </form>

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.5.0 - 2026-04-19
+
+### Saludo & Health (Flow Correction)
+- Refined `/salud` flow according to HAR capture.
+- Switched to the correct JSF field names (`frm-body`, `nameUrl`).
+- Implemented `JSESSIONID` cookie proxying for better session persistence.
+
 ## 1.4.0 - 2026-04-19
 
 ### Saludo & Health

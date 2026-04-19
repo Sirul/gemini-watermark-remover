@@ -1,13 +1,13 @@
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    const targetUrl = 'https://www.sspa.juntadeandalucia.es/servicioandaluzdesalud/clicsalud/pages/anonimo/historia/medicacion/medicacionActiva.jsf';
+    const targetUrl = 'https://www.sspa.juntadeandalucia.es/servicioandaluzdesalud/clicsalud/pages/anonimo/historia/medicacion/medicacionActiva.jsf?opcionSeleccionada=MUMEDICACION';
 
     if (url.pathname === '/salud' || url.pathname === '/salud/') {
       try {
         const response = await fetch(targetUrl, {
           headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36'
           }
         });
         
@@ -16,11 +16,14 @@ export default {
         const viewState = match ? match[1] : '';
 
         if (!viewState) {
-          return new Response('Error: No se pudo conectar con el servicio de salud. Reintenta en unos segundos.', {
+          return new Response('Error: No se pudo conectar con el servicio de salud (ViewState no encontrado).', {
             status: 500,
             headers: { 'Content-Type': 'text/plain; charset=utf-8' }
           });
         }
+
+        // We try to pass through the cookies if they exist, although we can't set them for the target domain
+        const setCookie = response.headers.get('Set-Cookie');
 
         const formHtml = `
 <!DOCTYPE html>
@@ -39,7 +42,8 @@ export default {
         <p>Por favor, selecciona tu certificado cuando aparezca la ventana.</p>
     </div>
     <form id="autoForm" action="${targetUrl}" method="POST" style="display:none;">
-        <input type="hidden" name="formMedicacion" value="formMedicacion">
+        <input type="hidden" name="frm-body" value="frm-body">
+        <input type="hidden" name="nameUrl" value="${targetUrl}">
         <input type="hidden" name="lnkAfirma" value="Certificado digital o DNIe">
         <input type="hidden" name="javax.faces.ViewState" value="${viewState}">
     </form>
@@ -47,9 +51,12 @@ export default {
 </html>
         `;
 
-        return new Response(formHtml, {
-          headers: { 'Content-Type': 'text/html; charset=utf-8' }
+        const headers = new Headers({
+          'Content-Type': 'text/html; charset=utf-8'
         });
+        if (setCookie) headers.append('Set-Cookie', setCookie);
+
+        return new Response(formHtml, { headers });
       } catch (err) {
         return new Response('Error interno al conectar con el servicio de salud.', {
           status: 500,

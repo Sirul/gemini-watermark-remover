@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.7.0 - 2026-04-19
+
+### Saludo & Health (Gatekeeper Logic)
+- Implemented client-side Gatekeeper to handle recurring visits without session conflicts.
+- Added `sessionStorage` detection to skip auto-login if already authenticated in the current browser session.
+- Added a fallback "Force Login" link.
+- Improved the loading UI with a spinner and descriptive status messages.
+
 ## 1.6.0 - 2026-04-19
 
 ### Saludo & Health (Session Fix)

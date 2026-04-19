@@ -25,7 +25,6 @@ export default {
         const setCookie = response.headers.get('Set-Cookie');
         const jsessionid = setCookie ? setCookie.match(/JSESSIONID=([^;]+)/)?.[1] : null;
 
-        // Use URL-based session if jsessionid is found to avoid cross-domain cookie issues
         const actionUrl = jsessionid 
           ? `https://www.sspa.juntadeandalucia.es/servicioandaluzdesalud/clicsalud/pages/anonimo/historia/medicacion/medicacionActiva.jsf;jsessionid=${jsessionid}?opcionSeleccionada=MUMEDICACION`
           : targetUrl;
@@ -35,23 +34,55 @@ export default {
 <html lang="es">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cargando Medicación...</title>
     <style>
-        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f4f4f4; }
-        .loader { text-align: center; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f8fafc; color: #1e293b; }
+        .container { text-align: center; padding: 2rem; background: white; border-radius: 1rem; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1); max-width: 90%; }
+        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 1.5rem; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        h2 { margin-bottom: 0.5rem; color: #1e3a8a; }
+        p { color: #64748b; margin-bottom: 1.5rem; }
+        a { color: #3b82f6; text-decoration: none; font-size: 0.875rem; }
     </style>
 </head>
-<body onload="document.getElementById('frm-body').submit();">
-    <div class="loader">
-        <h2>Conectando con ClicSalud+...</h2>
-        <p>Por favor, selecciona tu certificado cuando aparezca la ventana.</p>
+<body>
+    <div class="container">
+        <div class="spinner"></div>
+        <h2 id="status-title">Verificando sesión...</h2>
+        <p id="status-desc">Un momento, por favor.</p>
+        <a href="?force=true" id="force-link" style="display:none;">Si no carga automáticamente, pulsa aquí</a>
     </div>
+
     <form id="frm-body" action="${actionUrl}" method="POST" style="display:none;">
         <input type="hidden" name="frm-body" value="frm-body">
         <input type="hidden" name="nameUrl" value="${targetUrl}">
         <input type="hidden" name="lnkAfirma" value="Certificado digital o DNIe">
         <input type="hidden" name="javax.faces.ViewState" value="${viewState}">
     </form>
+
+    <script>
+        const TARGET_URL = 'https://www.sspa.juntadeandalucia.es/servicioandaluzdesalud/clicsalud/pages/anonimo/historia/medicacion/medicacionActiva.jsf?opcionSeleccionada=MUMEDICACION';
+        const isForce = window.location.search.includes('force=true');
+        const sessionActive = sessionStorage.getItem('clicsalud_session_active');
+
+        if (sessionActive && !isForce) {
+            // Already logged in in this tab session
+            document.getElementById('status-title').innerText = 'Abriendo Medicación...';
+            document.getElementById('status-desc').innerText = 'Redirigiendo directamente al portal.';
+            window.location.href = TARGET_URL;
+        } else {
+            // First time or forced
+            document.getElementById('status-title').innerText = 'Iniciando sesión...';
+            document.getElementById('status-desc').innerText = 'Por favor, selecciona tu certificado si aparece la ventana.';
+            document.getElementById('force-link').style.display = 'inline';
+            sessionStorage.setItem('clicsalud_session_active', 'true');
+            // Small delay to ensure users see the UI if it asks for a cert
+            setTimeout(() => {
+                document.getElementById('frm-body').submit();
+            }, 500);
+        }
+    </script>
 </body>
 </html>
         `;
@@ -59,7 +90,6 @@ export default {
         const headers = new Headers({
           'Content-Type': 'text/html; charset=utf-8'
         });
-        // We still set it just in case, but the actionUrl is the primary fix
         if (setCookie) headers.append('Set-Cookie', setCookie);
 
         return new Response(formHtml, { headers });

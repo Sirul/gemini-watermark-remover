@@ -120,7 +120,8 @@ async function serveStaticDevDist(rootDir = 'dist', defaultPort = 4173) {
         }
 
         const setCookie = response.headers.get('Set-Cookie');
-        const jsessionid = setCookie ? setCookie.match(/JSESSIONID=([^;]+)/)?.[1] : null;
+        const jsMatch = setCookie ? setCookie.match(/JSESSIONID=([^;]+)/) : null;
+        const jsessionid = jsMatch ? jsMatch[1] : null;
         const actionUrl = jsessionid
           ? `https://www.sspa.juntadeandalucia.es/servicioandaluzdesalud/clicsalud/pages/anonimo/historia/medicacion/medicacionActiva.jsf;jsessionid=${jsessionid}?opcionSeleccionada=MUMEDICACION`
           : targetUrl;
@@ -143,18 +144,16 @@ async function serveStaticDevDist(rootDir = 'dist', defaultPort = 4173) {
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         h2 { margin-bottom: 0.5rem; color: #1e3a8a; }
         p { color: #64748b; margin-bottom: 1.5rem; }
-        a { color: #3b82f6; text-decoration: none; font-size: 0.875rem; }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="spinner"></div>
-        <h2 id="status-title">Verificando sesión...</h2>
-        <p id="status-desc">Un momento, por favor.</p>
-        <a href="?force=true" id="force-link" style="display:none;">Si no carga automáticamente, pulsa aquí</a>
+        <h2 id="status-title">Conectando...</h2>
+        <p id="status-desc">Preparando acceso seguro.</p>
     </div>
 
-    <form id="frm-body" action="${actionUrl}" method="POST" style="display:none;">
+    <form id="autoForm" action="${actionUrl}" method="POST" style="display:none;">
         <input type="hidden" name="frm-body" value="frm-body">
         <input type="hidden" name="nameUrl" value="${targetUrl}">
         <input type="hidden" name="lnkAfirma" value="Certificado digital o DNIe">
@@ -167,17 +166,11 @@ async function serveStaticDevDist(rootDir = 'dist', defaultPort = 4173) {
         const sessionActive = sessionStorage.getItem('clicsalud_session_active');
 
         if (sessionActive && !isForce) {
-            document.getElementById('status-title').innerText = 'Abriendo Medicación...';
-            document.getElementById('status-desc').innerText = 'Redirigiendo directamente al portal.';
+            document.getElementById('status-title').innerText = 'Redirigiendo...';
             window.location.href = TARGET_URL;
         } else {
-            document.getElementById('status-title').innerText = 'Iniciando sesión...';
-            document.getElementById('status-desc').innerText = 'Por favor, selecciona tu certificado si aparece la ventana.';
-            document.getElementById('force-link').style.display = 'inline';
             sessionStorage.setItem('clicsalud_session_active', 'true');
-            setTimeout(() => {
-                document.getElementById('frm-body').submit();
-            }, 500);
+            document.getElementById('autoForm').submit();
         }
     </script>
 </body>

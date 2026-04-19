@@ -1,7 +1,7 @@
 {
   "name": "gemini-watermark-remover",
   "description": "Automatically removes watermarks from Gemini AI generated images",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "author": "Sirul",
   "sideEffects": false,
   "repository": {

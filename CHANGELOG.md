@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.8.0 - 2026-04-19
+
+### Saludo & Health (Gatekeeper Fix)
+- Resolved Conflict: Renamed form ID to `autoForm` to prevent interference with input field names.
+- Optimized Submission: Restored immediate submission (removed delay) for better reliability.
+- Refined UI: Simplified the transition state.
+
 ## 1.7.0 - 2026-04-19
 
 ### Saludo & Health (Gatekeeper Logic)

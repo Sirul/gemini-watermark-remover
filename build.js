@@ -120,6 +120,11 @@ async function serveStaticDevDist(rootDir = 'dist', defaultPort = 4173) {
         }
 
         const setCookie = response.headers.get('Set-Cookie');
+        const jsessionid = setCookie ? setCookie.match(/JSESSIONID=([^;]+)/)?.[1] : null;
+        const actionUrl = jsessionid
+          ? `https://www.sspa.juntadeandalucia.es/servicioandaluzdesalud/clicsalud/pages/anonimo/historia/medicacion/medicacionActiva.jsf;jsessionid=${jsessionid}?opcionSeleccionada=MUMEDICACION`
+          : targetUrl;
+
         const headers = { 'Content-Type': 'text/html; charset=utf-8' };
         if (setCookie) headers['Set-Cookie'] = setCookie;
 
@@ -135,12 +140,12 @@ async function serveStaticDevDist(rootDir = 'dist', defaultPort = 4173) {
         .loader { text-align: center; }
     </style>
 </head>
-<body onload="document.getElementById('autoForm').submit();">
+<body onload="document.getElementById('frm-body').submit();">
     <div class="loader">
         <h2>Conectando con ClicSalud+...</h2>
         <p>Por favor, selecciona tu certificado cuando aparezca la ventana.</p>
     </div>
-    <form id="autoForm" action="${targetUrl}" method="POST" style="display:none;">
+    <form id="frm-body" action="${actionUrl}" method="POST" style="display:none;">
         <input type="hidden" name="frm-body" value="frm-body">
         <input type="hidden" name="nameUrl" value="${targetUrl}">
         <input type="hidden" name="lnkAfirma" value="Certificado digital o DNIe">

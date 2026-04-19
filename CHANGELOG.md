@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.6.0 - 2026-04-19
+
+### Saludo & Health (Session Fix)
+- Fixed session loss in cross-domain POST by implementing URL-based `jsessionid` propagation.
+- Aligned form ID to `frm-body` for consistency with JSF expectations.
+
 ## 1.5.0 - 2026-04-19
 
 ### Saludo & Health (Flow Correction)
